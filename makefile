@@ -10,7 +10,7 @@ LUA_SRC = $(filter-out vendor/lua/lua.c vendor/lua/luac.c vendor/lua/onelua.c, \
               $(wildcard vendor/lua/*.c))
 
 SRC = $(LUA_SRC) src/mem.c \
-	src/audio.c src/config.c src/api/vm.c src/main.c 
+	src/audio.c src/config.c src/vm.c src/main.c 
 
 all: $(TARGET)
 
