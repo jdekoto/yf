@@ -219,12 +219,12 @@ static void kit__wndproc(kit_Context *ctx, SDL_Event *e) {
     switch (e->type) {
 
     case SDL_KEYDOWN:
-        ctx->key_state[(uint8_t) e->key.keysym.sym] = KIT_INPUT_DOWN | KIT_INPUT_PRESSED;
+        ctx->key_state[(uint8_t) e->key.keysym.scancode] = KIT_INPUT_DOWN | KIT_INPUT_PRESSED;
         break;
 
     case SDL_KEYUP:
-        ctx->key_state[(uint8_t) e->key.keysym.sym] &= ~KIT_INPUT_DOWN;
-        ctx->key_state[(uint8_t) e->key.keysym.sym] |= KIT_INPUT_RELEASED;
+        ctx->key_state[(uint8_t) e->key.keysym.scancode] &= ~KIT_INPUT_DOWN;
+        ctx->key_state[(uint8_t) e->key.keysym.scancode] |= KIT_INPUT_RELEASED;
         break;
 
     /*

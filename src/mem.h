@@ -18,7 +18,7 @@
 #define FB_HEI  96
 
 #define CH_STATUS(ch)  (ADDR_AUDIO + ((ch) * 10) + 0)
-#define CH_TRIGGER(ch) (ADDR_AUDIO + ((ch) * 10) + 1) // <-- NEW: 1 means reset playhead!
+#define CH_TRIGGER(ch) (ADDR_AUDIO + ((ch) * 10) + 1)
 #define CH_LOOP(ch)    (ADDR_AUDIO + ((ch) * 10) + 2)
 #define CH_ADDR_0(ch)  (ADDR_AUDIO + ((ch) * 10) + 3) 
 #define CH_ADDR_1(ch)  (ADDR_AUDIO + ((ch) * 10) + 4) 
