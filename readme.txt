@@ -8,7 +8,8 @@ specs:
 
 how to use:
   simply go into terminal and type:
-    ./yf <project_folder>
+    ./yf <project_folder> 
+  ex: ./yf demo
 
 warning:
   this is not a finished project
