@@ -1,0 +1,20 @@
+yf roadmap
+
+what we have now:
+	pixel processing unit
+	memory (holding strong so far)
+	lua VM (cpu) 
+	palette (cherrypop font in res too)
+	system font (remap special characters)
+	audio processing unit
+	kbd input (ill map controllers later)
+	
+what needs to be done:
+	api/polished vm
+	cart format
+	rewrite (maybe)
+	file finder + project tools
+	
+whats the goal:
+	for now, make it a framework like cel7
+	for later, make a mini dev environment
