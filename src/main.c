@@ -2,7 +2,7 @@
 #define KIT_IMPL
 #include "kit.h"
 #include "mem.h"
-#include "api/vm.h"
+#include "vm.h"
 #include "audio.h"
 #include "font.h"
 #include "config.h"
@@ -26,25 +26,6 @@ void fb_expand(Pixel *dst) {
         dst[i] = pal[fb[i] & 0x0f];
 }
 
-/* Simple function to sync physical keys to virtual memory bitmask
-void map_inputs(kit_Context *ctx) {
-    uint8_t last_frame = peek(ADDR_INPUT);
-    poke(ADDR_INPUT + 1, last_frame);
-    uint16_t mask = 0;
-    if (kit_key_down(ctx, SDLK_LEFT))    mask |= (1 << 0);
-    if (kit_key_down(ctx, SDLK_RIGHT))   mask |= (1 << 1);
-    if (kit_key_down(ctx, SDLK_UP))      mask |= (1 << 2);
-    if (kit_key_down(ctx, SDLK_DOWN))    mask |= (1 << 3);
-    if (kit_key_down(ctx, SDLK_a))       mask |= (1 << 4); // Button A
-    if (kit_key_down(ctx, SDLK_s))       mask |= (1 << 5); // Button B
-    if (kit_key_down(ctx, SDLK_z))       mask |= (1 << 6); // Button C
-    if (kit_key_down(ctx, SDLK_x))       mask |= (1 << 7); // Button D
-    if (kit_key_down(ctx, SDLK_RETURN))  mask |= (1 << 8); // Enter
-
-    poke(ADDR_INPUT, mask); // Store it directly in your fake memory register
-}
-*/
-
 void map_inputs(kit_Context *ctx) {
     // 1. Shift BOTH current bytes (40, 41) into the previous slots (42, 43)
     poke(0x03042, peek(0x03040));
@@ -57,11 +38,11 @@ void map_inputs(kit_Context *ctx) {
     if (kit_key_down(ctx, SDL_SCANCODE_RIGHT))   mask |= (1 << 1);
     if (kit_key_down(ctx, SDL_SCANCODE_UP))      mask |= (1 << 2);
     if (kit_key_down(ctx, SDL_SCANCODE_DOWN))    mask |= (1 << 3);
-    if (kit_key_down(ctx, SDLK_a))       mask |= (1 << 4); // Button A
-    if (kit_key_down(ctx, SDLK_s))       mask |= (1 << 5); // Button B
-    if (kit_key_down(ctx, SDLK_z))       mask |= (1 << 6); // Button C
-    if (kit_key_down(ctx, SDLK_x))       mask |= (1 << 7); // Button D
-    if (kit_key_down(ctx, SDLK_RETURN))  mask |= (1 << 8); // Enter / Start
+    if (kit_key_down(ctx, SDL_SCANCODE_A))       mask |= (1 << 4); // Button A
+    if (kit_key_down(ctx, SDL_SCANCODE_S))       mask |= (1 << 5); // Button B
+    if (kit_key_down(ctx, SDL_SCANCODE_Z))       mask |= (1 << 6); // Button C
+    if (kit_key_down(ctx, SDL_SCANCODE_X))       mask |= (1 << 7); // Button D
+    if (kit_key_down(ctx, SDL_SCANCODE_RETURN))  mask |= (1 << 8); // Enter / Start
 
     // 3. Poke the 16-bit mask across our two back-to-back registers
     poke(0x03040, (uint8_t)(mask & 0xFF));        // Lower byte (bits 0-7)
