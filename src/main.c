@@ -19,15 +19,6 @@
 
 static VM vm;
 
-/*
-void fb_expand(Pixel *dst) {
-    uint8_t  *fb  = memory + ADDR_FB;
-    uint32_t *pal = (uint32_t *)(memory + ADDR_PAL);
-    for (int i = 0; i < FB_WID * FB_HEI; i++)
-        dst[i] = pal[fb[i] & 0x0f];
-}
-*/
-
 void fb_expand(uint16_t *dst) {
     // Point to the beginning of your 16-bit Framebuffer in RAM
     uint8_t *fb = (uint8_t*)memory + ADDR_FB;
@@ -145,7 +136,6 @@ int main(int argc, char *argv[]) {
     while (kit_step(ctx, &dt)) {
     
         vm_reload(&vm, "boot.lua");
-        // map_mouse(ctx);;
         map_inputs(ctx);
         fb_expand(framebuf); 
         vm_update(&vm);
