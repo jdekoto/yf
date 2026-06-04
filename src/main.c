@@ -49,6 +49,40 @@ void map_inputs(kit_Context *ctx) {
     poke(0x03041, (uint8_t)((mask >> 8) & 0xFF)); // Upper byte (bits 8-15)
 }
 
+// main.c
+
+static void map_mouse(kit_Context *ctx) {
+    int mx = 0;
+    int my = 0;
+    uint32_t mouse_buttons = 0;
+
+    mouse_buttons = SDL_GetMouseState(&mx, &my);
+
+    // 2. Scale or clamp window coordinates down to match your exact internal FB_WID / FB_HEI
+    // (If kit handles rendering via a stretched window, we scale it back down to your retro resolution)
+    int window_w, window_h;
+    SDL_GetWindowSize(ctx->window, &window_w, &window_h);
+    
+    int internal_x = (mx * FB_WID) / window_w;
+    int internal_y = (my * FB_HEI) / window_h;
+
+    // Bounds safety clamping
+    if (internal_x < 0) internal_x = 0;
+    if (internal_x >= FB_WID) internal_x = FB_WID - 1;
+    if (internal_y < 0) internal_y = 0;
+    if (internal_y >= FB_HEI) internal_y = FB_HEI - 1;
+
+    // 3. Build the click bitmask
+    uint8_t click_mask = 0;
+    if (mouse_buttons & SDL_BUTTON(SDL_BUTTON_LEFT))  click_mask |= (1 << 0);
+    if (mouse_buttons & SDL_BUTTON(SDL_BUTTON_RIGHT)) click_mask |= (1 << 1);
+
+    // 4. Poke values directly into your virtual hardware memory layout!
+    poke(0x03044, (uint8_t)internal_x);
+    poke(0x03045, (uint8_t)internal_y);
+    poke(0x03046, click_mask);
+}
+
 // loads everything needed into ram.
 static void mem_init() {
     // initialize the array
@@ -148,6 +182,7 @@ int main(int argc, char *argv[]) {
     while (kit_step(ctx, &dt)) {
     
         vm_reload(&vm, "boot.lua");
+        map_mouse(ctx);;
         map_inputs(ctx);
         fb_expand(framebuf); 
         vm_update(&vm);

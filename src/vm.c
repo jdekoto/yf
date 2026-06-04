@@ -1,5 +1,6 @@
 #include "vm.h"
 #include "mem.h"
+#include "audio.h"
 #include <string.h>
 #include <dirent.h>
 
@@ -72,21 +73,33 @@ int l_cstore(lua_State *L) {
     return 0;
 }
 
-static const luaL_Reg api[] = {
-    {"peek",    l_peek},  
-    {"poke",    l_poke},
-    {"peek2",   l_peek2}, 
-    {"poke2",   l_poke2},
-    {"peek4",   l_peek4}, 
-    {"poke4",   l_poke4},
-    {"memset",  l_memset},
-    {"memcpy",  l_memcpy},  
-    {"reload",  l_reload},
-    {"cstore",  l_cstore},
-    {NULL, NULL},
-};
+/* ── hardware tracker API ──────────────────────────────────────────────── */
+
+int l_feedtracker(lua_State *L) {
+  const char* filename = luaL_checkstring(L, 1);
+  
+  spu_feedtracker(filename);
+  
+  return 0;
+}
+
 
 /* ── vm ──────────────────────────────────────────────────────── */
+
+static const luaL_Reg api[] = {
+    {"peek",          l_peek},  
+    {"poke",          l_poke},
+    {"peek2",         l_peek2}, 
+    {"poke2",         l_poke2},
+    {"peek4",         l_peek4}, 
+    {"poke4",         l_poke4},
+    {"memset",        l_memset},
+    {"memcpy",        l_memcpy},  
+    {"reload",        l_reload},
+    {"cstore",        l_cstore},
+    {"feed_tracker",  l_feedtracker},
+    {NULL, NULL},
+};
 
 static time_t last_mtime = 0;
 

@@ -11,8 +11,8 @@
 #define ADDR_INPUT  0x03040u   /* input state            */
 #define ADDR_AUDIO  0x03050u   /* audio registers        */
 #define ADDR_FONT   0x03200u   /* system font            */
-#define ADDR_SNDBUF 0x03500u   /* audio stream buffer    */
-#define ADDR_CART   0x04000u   /* cart RAM (~786KB)      */
+#define ADDR_CART   0x03500u   /* cart RAM (~870KB)      */
+#define ADDR_SNDBUF 0xE0000u   /* audio stream buffer    */
 
 #define FB_WID 128
 #define FB_HEI  96
@@ -27,6 +27,8 @@
 #define CH_LEN_1(ch)   (ADDR_AUDIO + ((ch) * 10) + 7)
 #define CH_LEN_2(ch)   (ADDR_AUDIO + ((ch) * 10) + 8)
 #define CH_VOLUME(ch)  (ADDR_AUDIO + ((ch) * 10) + 9)
+#define ADDR_TRACKER_ENABLED (ADDR_AUDIO + 0x42)  // 1-byte toggle (0 = Off, 1 = On)
+#define ADDR_TRACKER_VOLUME  (ADDR_AUDIO + 0x43)  // 1-byte master gain (0 to 255)
 
 typedef uint32_t Pixel;
 

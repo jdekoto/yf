@@ -4,7 +4,7 @@ local ADDR_INP_CURRENT_HIGH  = 0x03041
 local ADDR_INP_PREVIOUS_LOW  = 0x03042
 local ADDR_INP_PREVIOUS_HIGH = 0x03043
 
--- Match this exactly to your main.c map_inputs() bit-shifting offsets!
+-- Maps to the bit offsets
 BTN_LEFT  = 0  -- (1 << 0)
 BTN_RIGHT = 1  -- (1 << 1)
 BTN_UP    = 2  -- (1 << 2)
@@ -39,4 +39,22 @@ function btnp(id)
     local was_up_then = (previous & (1 << id)) == 0
     
     return is_down_now and was_up_then
+end
+
+-- Hardware Offsets
+local ADDR_MOUSE_X = 0x03044
+local ADDR_MOUSE_Y = 0x03045
+local ADDR_MOUSE_B = 0x03046
+
+--- Retrieves the mouse state from virtual console RAM
+-- @return x, y, left_click, right_click
+function mouse()
+    local mx = peek(ADDR_MOUSE_X)
+    local my = peek(ADDR_MOUSE_Y)
+    local mb = peek(ADDR_MOUSE_B)
+
+    local left_down  = (mb & (1 << 0)) ~= 0
+    local right_down = (mb & (1 << 1)) ~= 0
+
+    return mx, my, left_down, right_down
 end

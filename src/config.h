@@ -9,5 +9,4 @@
 
 void config_title(SDL_Window *window, const char *config_file_path);
 
-
 #endif

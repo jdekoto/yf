@@ -17,12 +17,22 @@ warning:
   projects under 16 mb. a cassette
   format will come up soon.
 
-since there's no api, almost everything
+since there's little to no api, almost everything
 can work through peek and poke:
 #define ADDR_FB     0x00000u   /* 128×96 = 12,288 bytes  */
 #define ADDR_PAL    0x03000u   /* 16 colors × 4 bytes    */
 #define ADDR_INPUT  0x03040u   /* input state            */
 #define ADDR_AUDIO  0x03050u   /* audio registers        */
 #define ADDR_FONT   0x03200u   /* system font            */
-#define ADDR_SNDBUF 0x03500u   /* audio stream buffer    */
-#define ADDR_CART   0x04000u   /* cart RAM (~786KB)      */
+#define ADDR_CART   0x03500u   /* cart RAM (~870KB)      */
+#define ADDR_SNDBUF 0xE0000u   /* audio stream buffer    */
+
+appreciation:
+i wanna say a huge thanks to the CherryPop
+developer as that was a major creative influence.
+Go support and check them out: https://github.com/ShrimpCatDev/CherryPop
+(also thanking them cuz lowk using their font/palette right now)
+
+next i would also wanna say a huge thanks to
+the ibxm developer as well, it shows that i dont need
+an additional 382 mb to make a hardware tracker. (copyright in vendored files)
