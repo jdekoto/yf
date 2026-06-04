@@ -40,4 +40,4 @@ an additional 382 mb to make a hardware tracker. (copyright in vendored files)
 finally i wanna thank all of lexaloffle who basically 
 started this genre and defined the fantasy blueprint. 
 
-alr thats it.
+alr thats it. bye-bye :)
