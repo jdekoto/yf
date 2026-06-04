@@ -1,18 +1,67 @@
 local ADDR_FB   = 0x00000 --
-local ADDR_FONT = 0x03200 --
+local ADDR_FONT = 0x06200 --
 local FB_WID    = 128     --
 local FB_HEI    = 96      --
 local ADDR_BANK_SWITCH = 0x03044 --
+local PALETTE = {}
+
+-- runtime/graphics.lua
+
+-- Helper: Packs 0-255 RGB channels into a single 16-bit RGB565 integer
+function rgb(r, g, b)
+    local r5 = math.floor((r * 31) / 255)
+    local g6 = math.floor((g * 63) / 255)
+    local b5 = math.floor((b * 31) / 255)
+    return (r5 * 2048) + (g6 * 32) + b5
+end
+
+local PALETTE = {
+  [0] = rgb(23, 25, 27), 	-- asphalt
+  [1] = rgb(40, 35, 123), 	-- ocean
+  [2] = rgb(50, 89, 226), 	-- afternoon
+  [3] = rgb(51, 165, 255), 	-- neon
+  [4] = rgb(10, 75, 77), 	-- rainforest
+  [5] = rgb(114, 203, 37), 	-- bamboo
+  [6] = rgb(255, 196, 56), 	-- solar
+  [7] = rgb(240, 108, 0), 	-- tangerine
+  [8] = rgb(209, 40, 65), 	-- strawberry
+  [9] = rgb(87, 20, 46), 	-- cherry
+  [10] = rgb(151, 63, 63), 	-- soil
+  [11] = rgb(241, 194, 132), 	-- caucasian
+  [12] = rgb(229, 93, 172), 	-- bubblegum
+  [13] = rgb(241, 240, 238), 	-- white
+  [14] = rgb(150, 165, 171), 	-- cobblestone
+  [15] = rgb(88, 108, 121), 	-- concrete
+}
 
 function cls(color)
-    memcpy(0x00000, color, 12288) 
+    if PALETTE[color] then
+        color = PALETTE[color]
+    end
+
+    local low_byte  = color & 0xFF
+    local high_byte = (color >> 8) & 0xFF
+   
+    for addr = ADDR_FB, ADDR_FB + 24575, 2 do
+        poke(addr,     low_byte)
+        poke(addr + 1, high_byte)
+    end
 end
 
 function pset(x, y, color)
-    if x >= 0 and x < 128 and y >= 0 and y < 96 then
-        local addr = 0x00000 + (y * 128) + x
-        poke(addr, color & 0x0F)
+    if x < 0 or x >= FB_WID or y < 0 or y >= FB_HEI then return end
+ 
+    if PALETTE[color] then
+        color = PALETTE[color]
     end
+ 
+    local pixel_addr = ADDR_FB + ((y * FB_WID + x) * 2)
+    
+    local low_byte  = color & 0xFF
+    local high_byte = (color >> 8) & 0xFF
+    
+    poke(pixel_addr,     low_byte)
+    poke(pixel_addr + 1, high_byte)
 end
 
 function pget(x, y)
@@ -35,10 +84,10 @@ function rectfill(x0, y0, x1, y1, color)
     if start_y < 0 then start_y = 0 end
     if end_y > 95 then end_y = 95 end
 
+    -- Optimize by running pset loop directly 
     for y = start_y, end_y do
-        local row_offset = y * 128
         for x = start_x, end_x do
-            poke(row_offset + x, color)
+            pset(x, y, color)
         end
     end
 end
@@ -101,206 +150,159 @@ function circfill(cx, cy, r, color)
     end
 end
 
--- Inside runtime/render.lua
-
--- Helper function to unpack a 4-byte little-endian integer from a binary string
 local function unpack_uint32(str, offset)
     local b1, b2, b3, b4 = string.byte(str, offset, offset + 3)
     return b1 + (b2 << 8) + (b3 << 16) + (b4 << 24)
 end
 
--- Helper function to unpack a 4-byte signed integer (handles negative heights)
 local function unpack_int32(str, offset)
     local val = unpack_uint32(str, offset)
-    if val >= 0x80000000 then
-        return val - 0x100000000
-    end
+    if val >= 0x80000000 then return val - 0x100000000 end
     return val
 end
 
---- Loads an indexed 8-bit or 4-bit BMP file completely via Lua and pokes it into RAM
--- @param filename The path to the .bmp file (e.g., "sprites0.bmp")
--- @param dest_ram_address The target VRAM memory offset (e.g., 0x04000)
+-- NOTE: To support true 16-bit color rendering, your 'sprites.bmp' file should ideally 
+-- be saved from your image editor directly as an uncompressed 24-bit RGB or 16-bit BMP!
 function sprsht(filename, dest_ram_address)
     local file = io.open(filename, "rb")
-    if not file then
-        print("Error: Could not open file " .. filename)
-        return false
-    end
+    if not file then return false end
 
-    -- Read the entire file header block (first 54 bytes cover BMP metadata)
     local header = file:read(54)
     if not header or string.sub(header, 1, 2) ~= "BM" then
-        print("Error: " .. filename .. " is not a valid BMP file.")
         file:close()
         return false
     end
 
-    -- Extract file pointers using our unpackers
-    local pixel_data_offset = unpack_uint32(header, 11) -- Byte 10: Pixel data start address
-    local width              = unpack_int32(header, 19)  -- Byte 18: Image Width
-    local height             = unpack_int32(header, 23)  -- Byte 22: Image Height
+    local pixel_data_offset = unpack_uint32(header, 11)
+    local width              = unpack_int32(header, 19)
+    local height             = unpack_int32(header, 23)
     local bits_per_pixel     = string.byte(header, 29) + (string.byte(header, 30) << 8)
 
-    if bits_per_pixel ~= 8 and bits_per_pixel ~= 4 then
-        print("Error: Console only supports 8-bit or 4-bit indexed BMP formats.")
+    file:seek("set", pixel_data_offset)
+
+    local abs_height = math.abs(height)
+    local is_bottom_up = (height > 0)
+
+    if bits_per_pixel == 24 then
+        -- 24-bit True Color BMP processing (Easiest format to export from modern software)
+        local row_size = math.floor(((24 * width) + 31) / 32) * 4
+        local pixel_bytes = file:read(row_size * abs_height)
+        file:close()
+
+        for y = 0, abs_height - 1 do
+            local bmp_y = is_bottom_up and (abs_height - 1 - y) or y
+            local row_start = (bmp_y * row_size) + 1
+
+            for x = 0, width - 1 do
+                local byte_pos = row_start + (x * 3)
+                local b = string.byte(pixel_bytes, byte_pos)
+                local g = string.byte(pixel_bytes, byte_pos + 1)
+                local r = string.byte(pixel_bytes, byte_pos + 2)
+
+                -- Convert 24-bit file color into your engine's 16-bit RGB565 short
+                local color16 = rgb(r, g, b)
+
+                -- Store the 2 color bytes consecutively inside Cartridge Asset RAM
+                local target_ram_addr = dest_ram_address + ((y * width + x) * 2)
+                poke(target_ram_addr,     color16 & 0xFF)
+                poke(target_ram_addr + 1, (color16 >> 8) & 0xFF)
+            end
+        end
+    else
+        print("Error: For direct 16-bit high color modes, save asset sprites as 24-bit BMP.")
         file:close()
         return false
     end
 
-    -- Jump directly to the pixel data offset block inside the file
-    file:seek("set", pixel_data_offset)
-
-    -- BMP rows are padded to multiples of 4 bytes. Let's calculate the true row size:
-    local row_size = math.floor(((bits_per_pixel * width) + 31) / 32) * 4
-    
-    -- Read all raw pixel rows into memory
-    local pixel_bytes = file:read(row_size * math.abs(height))
-    file:close()
-
-    -- Process rows. Remember: BMP maps pixels from bottom-to-top by default (positive height)
-    local is_bottom_up = (height > 0)
-    local abs_height = math.abs(height)
-
-    for y = 0, abs_height - 1 do
-        local bmp_y = is_bottom_up and (abs_height - 1 - y) or y
-        local row_start = (bmp_y * row_size) + 1
-
-        for x = 0, width - 1 do
-            local color_index = 0
-
-            if bits_per_pixel == 8 then
-                -- 8-bit: Each byte is exactly one pixel color index
-                local byte_pos = row_start + x
-                color_index = string.byte(pixel_bytes, byte_pos) & 0x0F -- Clamp to 16-color range
-            elseif bits_per_pixel == 4 then
-                -- 4-bit: 1 byte contains 2 pixels packed together (High nibble, Low nibble)
-                local byte_pos = row_start + math.floor(x / 2)
-                local raw_byte = string.byte(pixel_bytes, byte_pos)
-                if x % 2 == 0 then
-                    color_index = (raw_byte >> 4) & 0x0F -- Left pixel
-                else
-                    color_index = raw_byte & 0x0F        -- Right pixel
-                end
-            end
-
-            -- Poke the resulting color index directly into your mapped Sprite RAM!
-            local target_ram_addr = dest_ram_address + (y * width) + x
-            poke(target_ram_addr, color_index)
-        end
-    end
-
-    print("Successfully loaded " .. filename .. " (" .. width .. "x" .. abs_height .. ") via Lua!")
+    print("Loaded " .. filename .. " (" .. width .. "x" .. abs_height .. ") into Cartridge Asset RAM!")
     return true
 end
 
---- Selects which sprite sheet bank spr() will read from
--- @param bank_id (0 for sprites0.bmp, 1 for sprites1.bmp)
 function sbank(bank_id)
     poke(ADDR_BANK_SWITCH, bank_id or 0)
 end
 
---- Draws an 8x8 sprite from the active sheet bank directly into VRAM
+-- 16-Bit Sprite Renderer
 function spr(id, screen_x, screen_y, flip_x, flip_y)
-    -- 1. Determine which 16KB memory block to read from based on our bank switch register
     local current_bank = peek(ADDR_BANK_SWITCH)
-    local sprite_sheet_base = 0x04000
+    
+    -- In 16-bit mode, our spritesheet base needs double the storage footprint
+    local sprite_sheet_base = 0x06500 -- Safely past VRAM and standard hardware components
     if current_bank == 1 then
-        sprite_sheet_base = 0x08000
+        sprite_sheet_base = sprite_sheet_base + 32768 -- Offsets by 32KB per bank
     end
 
-    -- 2. Calculate where this sprite ID lives on a 128x128 grid (16 sprites per row)
     local sprite_sheet_width = 128
     local spr_x = (id % 16) * 8
     local spr_y = math.floor(id / 16) * 8
 
-    -- 3. Draw the 8x8 pixel block row by row
     for py = 0, 7 do
         for px = 0, 7 do
-            -- Handle horizontal and vertical flipping math
             local source_x = spr_x + (flip_x and (7 - px) or px)
             local source_y = spr_y + (flip_y and (7 - py) or py)
 
-            -- Compute the exact RAM address of the source pixel and read it
-            local source_addr = sprite_sheet_base + (source_y * sprite_sheet_width) + source_x
-            local color = peek(source_addr)
+            -- Read the 16-bit color stored inside Asset RAM for this pixel location
+            local source_addr = sprite_sheet_base + ((source_y * sprite_sheet_width + source_x) * 2)
+            local low = peek(source_addr)
+            local high = peek(source_addr + 1)
+            local color16 = low | (high << 8)
 
-            -- Color 0 is traditionally transparent! Skip drawing if it matches
-            if color ~= 0 then
-                local dest_x = screen_x + px
-                local dest_y = screen_y + py
-
-                -- Bounds safety check: Only poke if the pixel falls inside your screen boundaries
-                if dest_x >= 0 and dest_x < FB_WID and dest_y >= 0 and dest_y < FB_HEI then
-                    local dest_addr = ADDR_FB + (dest_y * FB_WID) + dest_x
-                    poke(dest_addr, color)
-                end
+            -- Treat pure absolute black (0x0000) as transparent!
+            if color16 ~= 0x0000 then
+                pset(screen_x + px, screen_y + py, color16)
             end
         end
     end
 end
 
--- An optimization lookup table mapping ASCII character byte codes directly to your sheet indices
-local ASCII_TO_FONT_INDEX = {}
+-- ─── SYSTEM TEXT SUBSYSTEM ──────────────────────────────────────────────────
 
--- 1. Initialize standard ASCII mappings sequentially based on your font.png order
+local ASCII_TO_FONT_INDEX = {}
 local sequential_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ !__0123456789.:(){}-+/*,=\"'_[]____?<>@#$%^__~"
 
 for i = 1, #sequential_chars do
     local b = sequential_chars:byte(i)
-    ASCII_TO_FONT_INDEX[b] = i - 1 -- 0-based index for memory math
+    ASCII_TO_FONT_INDEX[b] = i - 1
 end
 
--- 2. Map your special custom graphics to standard keyboard characters for easy typing!
--- Looking at the symbols remaining on your font.png strip:
-ASCII_TO_FONT_INDEX[string.byte("_")] = 43  -- Underscore
-ASCII_TO_FONT_INDEX[string.byte("[")] = 44  -- Left Bracket
-ASCII_TO_FONT_INDEX[string.byte("]")] = 45  -- Right Bracket
+ASCII_TO_FONT_INDEX[string.byte("_")] = 43  
+ASCII_TO_FONT_INDEX[string.byte("[")] = 44  
+ASCII_TO_FONT_INDEX[string.byte("]")] = 45  
+ASCII_TO_FONT_INDEX[string.byte("{")] = 47  
+ASCII_TO_FONT_INDEX[string.byte("}")] = 48  
+ASCII_TO_FONT_INDEX[string.byte("^")] = 49  
+ASCII_TO_FONT_INDEX[string.byte("?")] = 50  
+ASCII_TO_FONT_INDEX[string.byte("<")] = 51  
+ASCII_TO_FONT_INDEX[string.byte(">")] = 52  
+ASCII_TO_FONT_INDEX[string.byte("@")] = 53  
+ASCII_TO_FONT_INDEX[string.byte("#")] = 54  
+ASCII_TO_FONT_INDEX[string.byte("$")] = 55  
+ASCII_TO_FONT_INDEX[string.byte("%")] = 56  
+ASCII_TO_FONT_INDEX[string.byte("&")] = 57  
+ASCII_TO_FONT_INDEX[string.byte("~")] = 58  
 
--- Custom retro symbols at the end of your sheet:
--- ASCII_TO_FONT_INDEX[string.byte("C")] = 46  -- 'C' for Cup / Mug icon
-ASCII_TO_FONT_INDEX[string.byte("{")] = 47  -- '{' for Heart icon
-ASCII_TO_FONT_INDEX[string.byte("}")] = 48  -- '}' for Diamond icon
-ASCII_TO_FONT_INDEX[string.byte("^")] = 49  -- '^' for Up Arrow icon
-ASCII_TO_FONT_INDEX[string.byte("?")] = 50  -- Question Mark
-ASCII_TO_FONT_INDEX[string.byte("<")] = 51  -- Less Than
-ASCII_TO_FONT_INDEX[string.byte(">")] = 52  -- Greater Than
-ASCII_TO_FONT_INDEX[string.byte("@")] = 53  -- At symbol
-ASCII_TO_FONT_INDEX[string.byte("#")] = 54  -- Hash
-ASCII_TO_FONT_INDEX[string.byte("$")] = 55  -- Dollar
-ASCII_TO_FONT_INDEX[string.byte("%")] = 56  -- Percent
-ASCII_TO_FONT_INDEX[string.byte("&")] = 57  -- Ampersand
-ASCII_TO_FONT_INDEX[string.byte("~")] = 58  -- Tilde / Wave
-
--- Helper function to calculate the true visual width of a character in RAM
 local function get_char_width(font_char_addr)
-    local max_col = 0 -- Keep track of the rightmost column containing a pixel
-    
+    local max_col = 0
     for row = 0, 4 do
         local row_byte = peek(font_char_addr + row)
-        
         for col = 0, 4 do
             local bit_mask = 0x80 >> col
             if (row_byte & bit_mask) ~= 0 then
-                if col > max_col then
-                    max_col = col
-                end
+                if col > max_col then max_col = col end
             end
         end
     end
-    
-    -- If max_col is 0, it means it's a completely empty space character.
-    -- We give space characters a default width of 2 pixels.
-    if max_col == 0 then
-        return 2
-    end
-    
-    -- True width is the index + 1 (e.g., if rightmost pixel is at col 2, width is 3)
+    if max_col == 0 then return 2 end
     return max_col + 1
 end
 
+-- 16-Bit Variant Text Printer
 function text(str, x, y, color)
-    color = (color or 13) & 0x0F 
+    if PALETTE[color] then
+        color = PALETTE[color]
+    end
+    -- Default to pure white color if no value is explicitly declared
+    color = color or rgb(255, 255, 255)
     local start_x = x
 
     str = string.upper(str)
@@ -308,45 +310,31 @@ function text(str, x, y, color)
     for i = 1, #str do
         local byte_code = str:byte(i)
         
-        if byte_code == 10 then -- Newline character (\n)
+        if byte_code == 10 then 
             x = start_x
             y = y + 6 
         else
-            -- Check our O(1) fast lookup table for the font strip index
             local idx = ASCII_TO_FONT_INDEX[byte_code]
-            
             if idx then
                 local font_char_addr = ADDR_FONT + (idx * 6)
-                
-                -- DYNAMIC VARIABLE SPACING CHECK
-                -- Calculate how wide this specific character actually is right now!
                 local char_width = get_char_width(font_char_addr)
                 
-                -- Loop through the 5 rows vertically
                 for row = 0, 4 do
                     local row_byte = peek(font_char_addr + row)
-                    
-                    -- Only loop up to the true width of the character!
                     for col = 0, char_width - 1 do
                         local bit_mask = 0x80 >> col
                         
                         if (row_byte & bit_mask) ~= 0 then
-                            local pixel_x = x + col
-                            local pixel_y = y + row
-                            
-                            if pixel_x >= 0 and pixel_x < FB_WID and pixel_y >= 0 and pixel_y < FB_HEI then
-                                poke(ADDR_FB + (pixel_y * FB_WID) + pixel_x, color)
-                            end
+                            -- Draw using our newly updated 16-bit pset!
+                            pset(x + col, y + row, color)
                         end
                     end
                 end
-                
-                -- Advance x by the character's unique width + 1 pixel of kerning/padding!
                 x = x + char_width + 1
             else
-                -- If character isn't mapped, advance cursor by an empty space block
                 x = x + 4
             end
         end
     end
 end
+

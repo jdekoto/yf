@@ -56,7 +56,7 @@ typedef struct {
 
 } kit_Context;
 
-Pixel framebuf[FB_WID * FB_HEI];
+uint16_t framebuf[FB_WID * FB_HEI];
 
 #define kit_max(a, b) ((a) > (b) ? (a) : (b))
 #define kit_min(a, b) ((a) < (b) ? (a) : (b))
@@ -302,7 +302,7 @@ kit_Context* kit_create(const char *title, int w, int h, int flags) {
             printf("Window could not be created! SDL_Error: %s\n", SDL_GetError());
         } else {
             ctx->renderer = SDL_CreateRenderer(ctx->window, -1, 0);
-            ctx->texture = SDL_CreateTexture(ctx->renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STATIC, ctx->screen->w, ctx->screen->h);
+            ctx->texture = SDL_CreateTexture(ctx->renderer, SDL_PIXELFORMAT_RGB565, SDL_TEXTUREACCESS_STATIC, ctx->screen->w, ctx->screen->h);
 
             SDL_ShowCursor(!ctx->hide_cursor);
 
@@ -342,7 +342,7 @@ bool kit_step(kit_Context *ctx, double *dt) {
     SDL_Rect dst = { wr.x, wr.y, wr.w, wr.h };
 
     // connecting kit texture to our framebuffer
-    SDL_UpdateTexture(ctx->texture, NULL, framebuf, ctx->screen->w * sizeof(Pixel));
+    SDL_UpdateTexture(ctx->texture, NULL, framebuf, ctx->screen->w * sizeof(uint16_t));
     SDL_RenderClear(ctx->renderer);
     SDL_RenderCopy(ctx->renderer, ctx->texture, NULL, &dst);
     SDL_RenderPresent(ctx->renderer);

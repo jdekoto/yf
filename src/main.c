@@ -19,17 +19,39 @@
 
 static VM vm;
 
+/*
 void fb_expand(Pixel *dst) {
     uint8_t  *fb  = memory + ADDR_FB;
     uint32_t *pal = (uint32_t *)(memory + ADDR_PAL);
     for (int i = 0; i < FB_WID * FB_HEI; i++)
         dst[i] = pal[fb[i] & 0x0f];
 }
+*/
+
+void fb_expand(uint16_t *dst) {
+    // Point to the beginning of your 16-bit Framebuffer in RAM
+    uint8_t *fb = (uint8_t*)memory + ADDR_FB;
+    
+    for (int i = 0; i < FB_WID * FB_HEI; i++) {
+        // Because each pixel is now 2 bytes, calculate the byte index
+        int byte_idx = i * 2;
+        
+        // Grab the Low Byte and High Byte from your flat RAM array
+        uint8_t low  = fb[byte_idx];
+        uint8_t high = fb[byte_idx + 1];
+        
+        // Combine them back into a single 16-bit color integer
+        uint16_t color16 = low | (high << 8);
+        
+        // Write it directly to the SDL texture / destination pixel array!
+        dst[i] = color16;
+    }
+}
 
 void map_inputs(kit_Context *ctx) {
     // 1. Shift BOTH current bytes (40, 41) into the previous slots (42, 43)
-    poke(0x03042, peek(0x03040));
-    poke(0x03043, peek(0x03041));
+    poke(0x06042, peek(0x06040));
+    poke(0x06043, peek(0x06041));
 
     // 2. Use a 16-bit integer so Bit 8 (Enter) doesn't get chopped off!
     uint16_t mask = 0;
@@ -45,73 +67,14 @@ void map_inputs(kit_Context *ctx) {
     if (kit_key_down(ctx, SDL_SCANCODE_RETURN))  mask |= (1 << 8); // Enter / Start
 
     // 3. Poke the 16-bit mask across our two back-to-back registers
-    poke(0x03040, (uint8_t)(mask & 0xFF));        // Lower byte (bits 0-7)
-    poke(0x03041, (uint8_t)((mask >> 8) & 0xFF)); // Upper byte (bits 8-15)
-}
-
-// main.c
-
-static void map_mouse(kit_Context *ctx) {
-    int mx = 0;
-    int my = 0;
-    uint32_t mouse_buttons = 0;
-
-    mouse_buttons = SDL_GetMouseState(&mx, &my);
-
-    // 2. Scale or clamp window coordinates down to match your exact internal FB_WID / FB_HEI
-    // (If kit handles rendering via a stretched window, we scale it back down to your retro resolution)
-    int window_w, window_h;
-    SDL_GetWindowSize(ctx->window, &window_w, &window_h);
-    
-    int internal_x = (mx * FB_WID) / window_w;
-    int internal_y = (my * FB_HEI) / window_h;
-
-    // Bounds safety clamping
-    if (internal_x < 0) internal_x = 0;
-    if (internal_x >= FB_WID) internal_x = FB_WID - 1;
-    if (internal_y < 0) internal_y = 0;
-    if (internal_y >= FB_HEI) internal_y = FB_HEI - 1;
-
-    // 3. Build the click bitmask
-    uint8_t click_mask = 0;
-    if (mouse_buttons & SDL_BUTTON(SDL_BUTTON_LEFT))  click_mask |= (1 << 0);
-    if (mouse_buttons & SDL_BUTTON(SDL_BUTTON_RIGHT)) click_mask |= (1 << 1);
-
-    // 4. Poke values directly into your virtual hardware memory layout!
-    poke(0x03044, (uint8_t)internal_x);
-    poke(0x03045, (uint8_t)internal_y);
-    poke(0x03046, click_mask);
+    poke(0x06040, (uint8_t)(mask & 0xFF));        // Lower byte (bits 0-7)
+    poke(0x06041, (uint8_t)((mask >> 8) & 0xFF)); // Upper byte (bits 8-15)
 }
 
 // loads everything needed into ram.
 static void mem_init() {
     // initialize the array
     memset(memory, 0, RAM_SIZE);
-    
-    // palette from ShrimpCatDev/CherryPop on github
-    const uint32_t default_palette[16] = {
-      RGBA(0x17, 0x19, 0x1b, 0xff), // asphalt
-      RGBA(0x28, 0x23, 0x7b, 0xff), // ocean  
-      RGBA(0x32, 0x59, 0xe2, 0xff), // blue sky
-      RGBA(0x33, 0xa5, 0xff, 0xff), // neon 
-      RGBA(0x0a, 0x4b, 0x4d, 0xff), // rainforest
-      RGBA(0x72, 0xcb, 0x25, 0xff), // bamboo
-      RGBA(0xff, 0xc4, 0x38, 0xff), // solar
-      RGBA(0xf0, 0x6c, 0x00, 0xff), // tangerine
-      RGBA(0xd1, 0x28, 0x41, 0xff), // strawberry
-      RGBA(0x57, 0x14, 0x2e, 0xff), // cherry
-      RGBA(0x97, 0x3f, 0x3f, 0xff), // healthy soil
-      RGBA(0xf1, 0xc2, 0x84, 0xff), // caucasian
-      RGBA(0xe5, 0x5d, 0xac, 0xff), // bubblegum
-      RGBA(0xf1, 0xf0, 0xee, 0xff), // white
-      RGBA(0x96, 0xa5, 0xab, 0xff), // cobblestone
-      RGBA(0x58, 0x6c, 0x79, 0xff), // concrete
-    };
-    
-    for (int i = 0; i < 16; i++) {
-        uint32_t current_color_address = ADDR_PAL + (i * 4);
-        poke4(current_color_address, default_palette[i]);
-    }
     
     kit_Image *font_img = NULL;
     
@@ -182,7 +145,7 @@ int main(int argc, char *argv[]) {
     while (kit_step(ctx, &dt)) {
     
         vm_reload(&vm, "boot.lua");
-        map_mouse(ctx);;
+        // map_mouse(ctx);;
         map_inputs(ctx);
         fb_expand(framebuf); 
         vm_update(&vm);

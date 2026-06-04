@@ -7,11 +7,10 @@
 #define RAM_SIZE   (1024 * 1024)
 
 #define ADDR_FB     0x00000u   /* 128×96 = 12,288 bytes  */
-#define ADDR_PAL    0x03000u   /* 16 colors × 4 bytes    */
-#define ADDR_INPUT  0x03040u   /* input state            */
-#define ADDR_AUDIO  0x03050u   /* audio registers        */
-#define ADDR_FONT   0x03200u   /* system font            */
-#define ADDR_CART   0x03500u   /* cart RAM (~870KB)      */
+#define ADDR_INPUT  0x06040u   /* input state            */
+#define ADDR_AUDIO  0x06050u   /* audio registers        */
+#define ADDR_FONT   0x06200u   /* system font            */
+#define ADDR_CART   0x06500u   /* cart RAM (~870KB)      */
 #define ADDR_SNDBUF 0xE0000u   /* audio stream buffer    */
 
 #define FB_WID 128
@@ -30,11 +29,6 @@
 #define ADDR_TRACKER_ENABLED (ADDR_AUDIO + 0x42)  // 1-byte toggle (0 = Off, 1 = On)
 #define ADDR_TRACKER_VOLUME  (ADDR_AUDIO + 0x43)  // 1-byte master gain (0 to 255)
 
-typedef uint32_t Pixel;
-
-// bummy bitshifter
-#define RGBA(r,g,b,a) (((uint32_t)(r)<<24)|((uint32_t)(g)<<16)|((uint32_t)(b)<<8)|(a))
-
 extern uint8_t memory[RAM_SIZE];
 
 uint8_t  peek (uint32_t addr);
@@ -44,10 +38,7 @@ void     poke2(uint32_t addr, uint16_t val);
 uint32_t peek4(uint32_t addr);
 void     poke4(uint32_t addr, uint32_t val);
 
-void    fb_expand(Pixel *dst);
-void    fb_cls   (uint8_t color);
-void    fb_pset  (int x, int y, uint8_t color);
-uint8_t fb_pget  (int x, int y);
+void    fb_expand(uint16_t *dst);
 
 #endif
 

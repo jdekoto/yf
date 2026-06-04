@@ -1,4 +1,4 @@
-local ADDR_AUDIO = 0x03050
+local ADDR_AUDIO = 0x06050
 local function CH_STATUS(ch)  return ADDR_AUDIO + (ch * 10) + 0 end
 local function CH_TRIGGER(ch) return ADDR_AUDIO + (ch * 10) + 1 end
 local function CH_LOOP(ch)    return ADDR_AUDIO + (ch * 10) + 2 end
@@ -128,8 +128,8 @@ end
 -- runtime/music.lua
 
 -- Define the exact hex addresses matching the C side definitions
-local IO_TRACKER_ENABLED = 0x03092 -- Swap this hex number with your exact calculation if needed!
-local IO_TRACKER_VOLUME  = 0x03093
+local IO_TRACKER_ENABLED = 0x06092 -- Swap this hex number with your exact calculation if needed!
+local IO_TRACKER_VOLUME  = 0x06093
 
 Tracker = {
     is_playing = false,
