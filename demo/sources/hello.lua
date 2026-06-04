@@ -5,7 +5,6 @@ y = 38
 
 function render_pal()
     for index = 0, 15 do
-        -- pset dynamically finds index and maps it to the 16-bit color block!
         pset(32 + index, y, index)
     end
 end

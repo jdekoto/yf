@@ -3,6 +3,7 @@ dots3d = {}
 
 -- 3d dot party
 -- by zep
+-- holy moly yo
 
 local function all(t)
     local i = 0
