@@ -21,11 +21,10 @@ warning:
 since there's little to no api, almost everything
 can work through peek and poke:
 #define ADDR_FB     0x00000u   /* 128×96 = 12,288 bytes  */
-#define ADDR_PAL    0x03000u   /* 16 colors × 4 bytes    */
-#define ADDR_INPUT  0x03040u   /* input state            */
-#define ADDR_AUDIO  0x03050u   /* audio registers        */
-#define ADDR_FONT   0x03200u   /* system font            */
-#define ADDR_CART   0x03500u   /* cart RAM (~870KB)      */
+#define ADDR_INPUT  0x06040u   /* input state            */
+#define ADDR_AUDIO  0x06050u   /* audio registers        */
+#define ADDR_FONT   0x06200u   /* system font            */
+#define ADDR_CART   0x06500u   /* cart RAM (~870KB)      */
 #define ADDR_SNDBUF 0xE0000u   /* audio stream buffer    */
 
 appreciation:
@@ -37,3 +36,8 @@ Go support and check them out: https://github.com/ShrimpCatDev/CherryPop
 next i would also wanna say a huge thanks to
 the ibxm developer as well, it shows that i dont need
 an additional 382 mb to make a hardware tracker. (copyright in vendored files)
+
+finally i wanna thank all of lexaloffle who basically 
+started this genre and defined the fantasy blueprint. 
+
+alr thats it.
