@@ -139,7 +139,7 @@ void vm_runtime(VM *vm, const char *folder) {
     }
 
     struct dirent *entry;
-    char file_buffer[512];
+    char file_buffer[1024];
     
     while ((entry = readdir(dir)) != NULL) {
         // Find files ending specifically in ".lua"
@@ -150,7 +150,8 @@ void vm_runtime(VM *vm, const char *folder) {
             snprintf(file_buffer, sizeof(file_buffer), "%s/%s", folder, entry->d_name);
             printf("Injecting: %s\n", file_buffer);
 
-            // Load and run the file immediately. 
+            
+            // Load and run the file immediately.
             // Because they run in the master state, all functions map straight to _G!
             if (luaL_dofile(vm->L, file_buffer) != LUA_OK) {
                 printf("Error loading %s: %s\n", file_buffer, lua_tostring(vm->L, -1));
@@ -177,11 +178,12 @@ void vm_init(VM *vm) {
 void vm_load(VM *vm, const char *path) {
     
     vm_runtime(vm, "runtime");
-    
+  
     if (luaL_dofile(vm->L, path) != LUA_OK) {
         fprintf(stderr, "vm_load: %s\n", lua_tostring(vm->L, -1));
         lua_pop(vm->L, 1);
     }
+    
     call_fn(vm->L, "_boot");
 }
 

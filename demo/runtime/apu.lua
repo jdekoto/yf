@@ -139,7 +139,7 @@ Tracker = {
     fade_callback = nil
 }
 
-function Tracker.load(filename)
+function module_load(filename)
     feed_tracker(filename) -- Call our clean native C asset loading function wrapper
     Tracker.is_playing = false
     Tracker.volume = 1.0
@@ -148,17 +148,17 @@ function Tracker.load(filename)
     poke(IO_TRACKER_VOLUME, 255) 
 end
 
-function Tracker.play()
+function module_play()
     Tracker.is_playing = true
     poke(IO_TRACKER_ENABLED, 1) -- Set hardware flag high! C takes over completely!
 end
 
-function Tracker.pause()
+function module_pause()
     Tracker.is_playing = false
     poke(IO_TRACKER_ENABLED, 0) -- Drop flag low to pause stream immediately
 end
 
-function Tracker.fade(target_volume, duration_frames, on_complete)
+function module_fade(target_volume, duration_frames, on_complete)
     Tracker.fade_target = target_volume
     Tracker.fade_callback = on_complete
     
@@ -170,7 +170,7 @@ function Tracker.fade(target_volume, duration_frames, on_complete)
     end
 end
 
-function Tracker.update()
+function module_tick()
     -- Process the creative fading loop updates
     if Tracker.volume ~= Tracker.fade_target then
         Tracker.volume = Tracker.volume + Tracker.fade_speed
