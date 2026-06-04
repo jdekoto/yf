@@ -5,6 +5,7 @@ a framework based fantasy console
 specs:
   lua 5.4
   1 mb memory
+  16-bit display
 
 how to use:
   simply go into terminal and type:
