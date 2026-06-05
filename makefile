@@ -11,7 +11,7 @@ LUA_SRC = $(filter-out vendor/lua/lua.c vendor/lua/luac.c vendor/lua/onelua.c, \
 IBXM_SRC = $(wildcard vendor/ibxm/*.c)
 
 SRC = $(LUA_SRC) $(IBXM_SRC) src/mem.c \
-	src/audio.c src/config.c src/vm.c src/main.c 
+	src/audio.c src/config.c src/yfc.c src/vm.c src/main.c 
 
 all: $(TARGET)
 

@@ -9,7 +9,7 @@ function render_pal()
     end
 end
 
-sprsht("assets/sprites.bmp", 0x06500)
+sprsht("assets/sprites.bmp", 0)
 
 function hello.tick()
 	cls(0)

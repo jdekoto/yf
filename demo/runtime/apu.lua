@@ -1,3 +1,5 @@
+-- runtime/apu.lua
+
 local ADDR_AUDIO = 0x06050
 local function CH_STATUS(ch)  return ADDR_AUDIO + (ch * 10) + 0 end
 local function CH_TRIGGER(ch) return ADDR_AUDIO + (ch * 10) + 1 end
@@ -84,7 +86,7 @@ function sfx(filename, volume, channel)
     file:close()
 
     -- Calculate destination relative to the new ADDR_SNDBUF location
-    local addr_sndbuf = 0xE0000
+    local addr_sndbuf = 0x0A500
     local audio_ram_dest = addr_sndbuf + (channel * 0x8000) -- 32KB shifts
 
     -- Safety check at 32KB
@@ -124,8 +126,6 @@ function sfx(filename, volume, channel)
 
     return true
 end
-
--- runtime/music.lua
 
 -- Define the exact hex addresses matching the C side definitions
 local IO_TRACKER_ENABLED = 0x06092 -- Swap this hex number with your exact calculation if needed!

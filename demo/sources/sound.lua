@@ -1,12 +1,12 @@
 
 sound = {}
 
-module_load("assets/roundii.xm")
+module_load("assets/heartbeats.xm")
 module_play()
 
 local wave_time = 0
 -- Hardware Addresses from your architecture definitions
-local ADDR_SNDBUF = 0xE0000
+local ADDR_SNDBUF = 0x0A500
 local ADDR_AUDIO  = 0x06050
 
 function sound.tick()
@@ -14,7 +14,7 @@ function sound.tick()
     module_tick()
 	
 	-- 1. Read the live 16-bit playhead indices directly from the SPU, only the left channel.
-    local playhead_ch0 = peek(ADDR_AUDIO + 0x30) | (peek(ADDR_AUDIO + 0x31) << 8)
+    local playhead_ch0 = peek(ADDR_AUDIO + 0x30) | (peek(ADDR_AUDIO + 0x31) << 4)
 
     -- 2. Draw across the screen width
     for x = 0, 128 do

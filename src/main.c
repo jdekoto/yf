@@ -5,6 +5,7 @@
 #include "vm.h"
 #include "audio.h"
 #include "font.h"
+#include "yfc.h"
 #include "config.h"
 #include <string.h>
 #include <stdio.h>
@@ -18,6 +19,7 @@
 #endif
 
 static VM vm;
+static bool is_yfc_cartridge = false;
 
 void fb_expand(uint16_t *dst) {
     // Point to the beginning of your 16-bit Framebuffer in RAM
@@ -98,6 +100,13 @@ static void mem_init() {
     }
 }
 
+// Helper: Safely looks up if a string matches a specific file extension
+static bool has_extension(const char *filename, const char *ext) {
+    size_t len = strlen(filename);
+    size_t ext_len = strlen(ext);
+    return len > ext_len && strcmp(filename + len - ext_len, ext) == 0;
+}
+
 int main(int argc, char *argv[]) {
 
     if (argc < 2) {
@@ -117,14 +126,19 @@ int main(int argc, char *argv[]) {
         return 0;
     }
     // --- RUNNING A CARTRIDGE FOLDER ---
-    const char *target_folder = argv[1];
+    const char *target = argv[1];
 
-    // 1. Move the engine's current working directory directly INTO the target folder!
-    // This instantly makes the cartridge folder the "root" for the game.
-    if (chdir(target_folder) != 0) {
-        printf("ERROR: Could not open or find cartridge folder: %s\n", target_folder);
-        return 1;
-    }
+    if (has_extension(target, ".yfc")) {
+        is_yfc_cartridge = true;
+        printf("ERROR: not fully implemented nor working\n");
+        //boot_yfc(&vm, target);
+     } else {
+        is_yfc_cartridge = false;
+        if (chdir(target) != 0) {
+            printf("ERROR: Could not open or find cartridge folder: %s\n", target);
+            return 1;
+        }
+     }
     
     mem_init();
     spu_init();
@@ -135,7 +149,9 @@ int main(int argc, char *argv[]) {
     double dt;
     while (kit_step(ctx, &dt)) {
     
-        vm_reload(&vm, "boot.lua");
+        if (!is_yfc_cartridge) {
+            vm_reload(&vm, "boot.lua");
+        }
         map_inputs(ctx);
         fb_expand(framebuf); 
         vm_update(&vm);

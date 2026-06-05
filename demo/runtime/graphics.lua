@@ -1,11 +1,29 @@
+-- runtime/graphics.lua
 local ADDR_FB   = 0x00000 --
 local ADDR_FONT = 0x06200 --
 local FB_WID    = 128     --
 local FB_HEI    = 96      --
-local ADDR_BANK_SWITCH = 0x03044 --
+local ADDR_BANK_SWITCH = 0x06044 --
 local PALETTE = {}
 
--- runtime/graphics.lua
+-- Persistent tracking tables for sprite bank metadata
+local BANK_ADDRESSES = {
+    [0] = 0x06500,        	  -- Bank 0 baseline RAM address
+    [1] = 0x08500, 		  	  -- Bank 1 baseline RAM address (shifted past a full 64*64 block)
+}
+local BANK_WIDTHS  = { [0] = 64, [1] = 64 } -- Defaults
+local BANK_HEIGHTS = { [0] = 64, [1] = 64 } -- Defaults
+
+-- Global Camera Tracking States (Defaults to 0, 0)
+local CAM_X = 0
+local CAM_Y = 0
+
+-- Global Clipping Rect tracking (Defaults to full-screen bounds)
+local CLIP = false
+local CLIP_X0 = 0
+local CLIP_Y0 = 0
+local CLIP_X1 = FB_WID - 1
+local CLIP_Y1 = FB_HEI - 1
 
 -- Helper: Packs 0-255 RGB channels into a single 16-bit RGB565 integer
 function rgb(r, g, b)
@@ -49,7 +67,21 @@ function cls(color)
 end
 
 function pset(x, y, color)
+	-- Apply the global camera displacement offset!
+    x = x - CAM_X -- this is basically cheap but idc anymore
+    y = y - CAM_Y
+    
+    -- 2. Hardware Clipping Check
+    -- If a custom clip window is active, drop pixels outside it!
+    if CLIP then
+        if x < CLIP_X0 or x > CLIP_X1 or y < CLIP_Y0 or y > CLIP_Y1 then 
+            return 
+        end
+    end
+    
     if x < 0 or x >= FB_WID or y < 0 or y >= FB_HEI then return end
+    
+    
  
     if PALETTE[color] then
         color = PALETTE[color]
@@ -150,6 +182,31 @@ function circfill(cx, cy, r, color)
     end
 end
 
+function camera(x, y)
+    -- If no parameters are passed, reset the camera back to origin (0, 0)
+    CAM_X = math.floor(x or 0)
+    CAM_Y = math.floor(y or 0)
+end
+
+function clip(x, y, w, h)
+    if not x or not y or not w or not h then
+        -- Clear the clip: turn it off and reset to screen size
+        CLIP_ENABLED = false
+        CLIP_X0 = 0
+        CLIP_Y0 = 0
+        CLIP_X1 = FB_WID - 1
+        CLIP_Y1 = FB_HEI - 1
+    else
+        -- Engage the clip bounding region
+        CLIP_ENABLED = true
+        CLIP_X0 = math.floor(x)
+        CLIP_Y0 = math.floor(y)
+        CLIP_X1 = math.floor(x + w - 1)
+        CLIP_Y1 = math.floor(y + h - 1)
+    end
+end
+
+-- texture/sprite handling
 local function unpack_uint32(str, offset)
     local b1, b2, b3, b4 = string.byte(str, offset, offset + 3)
     return b1 + (b2 << 8) + (b3 << 16) + (b4 << 24)
@@ -161,9 +218,20 @@ local function unpack_int32(str, offset)
     return val
 end
 
--- NOTE: To support true 16-bit color rendering, your 'sprites.bmp' file should ideally 
--- be saved from your image editor directly as an uncompressed 24-bit RGB or 16-bit BMP!
-function sprsht(filename, dest_ram_address)
+function sbank(bank_id)
+    poke(ADDR_BANK_SWITCH, bank_id or 0)
+end
+
+-- Upgraded Asset Loader supporting dynamic targets: sprsht("sprites.bmp", 0)
+function sprsht(filename, bank_id)
+    bank_id = bank_id or 0
+    local dest_ram_address = BANK_ADDRESSES[bank_id]
+    
+    if not dest_ram_address then
+        print("Error: Invalid Bank ID selection: " .. tostring(bank_id))
+        return false
+    end
+
     local file = io.open(filename, "rb")
     if not file then return false end
 
@@ -184,10 +252,19 @@ function sprsht(filename, dest_ram_address)
     local is_bottom_up = (height > 0)
 
     if bits_per_pixel == 24 then
-        -- 24-bit True Color BMP processing (Easiest format to export from modern software)
         local row_size = math.floor(((24 * width) + 31) / 32) * 4
         local pixel_bytes = file:read(row_size * abs_height)
         file:close()
+
+		if width > 64 or abs_height > 64 then
+        		print(string.format("CRITICAL ERROR: '%s' is %dx%d. Max spritesheet dimensions allowed: 64x64!", 
+            		filename, width, abs_height))
+        		return false
+    		end
+
+        -- Dynamically log the true sheet proportions so our spr() renderer can adapt!
+        BANK_WIDTHS[bank_id]  = width
+        BANK_HEIGHTS[bank_id] = abs_height
 
         for y = 0, abs_height - 1 do
             local bmp_y = is_bottom_up and (abs_height - 1 - y) or y
@@ -199,49 +276,42 @@ function sprsht(filename, dest_ram_address)
                 local g = string.byte(pixel_bytes, byte_pos + 1)
                 local r = string.byte(pixel_bytes, byte_pos + 2)
 
-                -- Convert 24-bit file color into your engine's 16-bit RGB565 short
                 local color16 = rgb(r, g, b)
 
-                -- Store the 2 color bytes consecutively inside Cartridge Asset RAM
+                -- Calculate absolute destination index sequentially
                 local target_ram_addr = dest_ram_address + ((y * width + x) * 2)
                 poke(target_ram_addr,     color16 & 0xFF)
                 poke(target_ram_addr + 1, (color16 >> 8) & 0xFF)
             end
         end
     else
-        print("Error: For direct 16-bit high color modes, save asset sprites as 24-bit BMP.")
+        print("Error: Save asset sprites as 24-bit BMP.")
         file:close()
         return false
     end
 
-    print("Loaded " .. filename .. " (" .. width .. "x" .. abs_height .. ") into Cartridge Asset RAM!")
+    print("Loaded " .. filename .. " (" .. width .. "x" .. abs_height .. ") into Sprite Bank " .. bank_id)
     return true
 end
 
-function sbank(bank_id)
-    poke(ADDR_BANK_SWITCH, bank_id or 0)
-end
-
--- 16-Bit Sprite Renderer
+-- Upgraded 16-Bit Sprite Renderer that scales beautifully to fit 64x64 grids
 function spr(id, screen_x, screen_y, flip_x, flip_y)
     local current_bank = peek(ADDR_BANK_SWITCH)
     
-    -- In 16-bit mode, our spritesheet base needs double the storage footprint
-    local sprite_sheet_base = 0x06500 -- Safely past VRAM and standard hardware components
-    if current_bank == 1 then
-        sprite_sheet_base = sprite_sheet_base + 32768 -- Offsets by 32KB per bank
-    end
+    local sprite_sheet_base  = BANK_ADDRESSES[current_bank] or 0x06500
+    local sprite_sheet_width = BANK_WIDTHS[current_bank] or 64
 
-    local sprite_sheet_width = 128
-    local spr_x = (id % 16) * 8
-    local spr_y = math.floor(id / 16) * 8
+    -- Calculate how many 8x8 sprite columns fit across this specific sheet width
+    local total_cols = math.floor(sprite_sheet_width / 8)
+
+    local spr_x = (id % total_cols) * 8
+    local spr_y = math.floor(id / total_cols) * 8
 
     for py = 0, 7 do
         for px = 0, 7 do
             local source_x = spr_x + (flip_x and (7 - px) or px)
             local source_y = spr_y + (flip_y and (7 - py) or py)
 
-            -- Read the 16-bit color stored inside Asset RAM for this pixel location
             local source_addr = sprite_sheet_base + ((source_y * sprite_sheet_width + source_x) * 2)
             local low = peek(source_addr)
             local high = peek(source_addr + 1)
@@ -255,8 +325,8 @@ function spr(id, screen_x, screen_y, flip_x, flip_y)
     end
 end
 
--- ─── SYSTEM TEXT SUBSYSTEM ──────────────────────────────────────────────────
-
+--text/font rendering
+-- TODO: update character map for special characters
 local ASCII_TO_FONT_INDEX = {}
 local sequential_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ !__0123456789.:(){}-+/*,=\"'_[]____?<>@#$%^__~"
 
@@ -337,4 +407,3 @@ function text(str, x, y, color)
         end
     end
 end
-

@@ -4,7 +4,7 @@ a framework based fantasy console
 
 specs:
   lua 5.4
-  1 mb memory
+  512 kb ram
   16-bit display
 
 how to use:
@@ -24,8 +24,10 @@ can work through peek and poke:
 #define ADDR_INPUT  0x06040u   /* input state            */
 #define ADDR_AUDIO  0x06050u   /* audio registers        */
 #define ADDR_FONT   0x06200u   /* system font            */
-#define ADDR_CART   0x06500u   /* cart RAM (~870KB)      */
-#define ADDR_SNDBUF 0xE0000u   /* audio stream buffer    */
+#define ADDR_SPRB0  0x06500u   /* Sprite Bank 0: 64x64   */
+#define ADDR_SPRB1  0x08500u   /* Sprite Bank 1: 64x64   */
+#define ADDR_SNDBUF 0x0A500u   /* audio stream buffer    */
+#define ADDR_CART   0x2A500u   /* cart RAM (~320KB)      */
 
 appreciation:
 i wanna say a huge thanks to the CherryPop

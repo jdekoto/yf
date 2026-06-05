@@ -4,14 +4,16 @@
 
 #include <stdint.h>
 
-#define RAM_SIZE   (1024 * 1024)
+#define RAM_SIZE   (512 * 512)
 
 #define ADDR_FB     0x00000u   /* 128×96 = 12,288 bytes  */
 #define ADDR_INPUT  0x06040u   /* input state            */
 #define ADDR_AUDIO  0x06050u   /* audio registers        */
 #define ADDR_FONT   0x06200u   /* system font            */
-#define ADDR_CART   0x06500u   /* cart RAM (~870KB)      */
-#define ADDR_SNDBUF 0xE0000u   /* audio stream buffer    */
+#define ADDR_SPRB0  0x06500u   /* Sprite Bank 0: 64x64   */
+#define ADDR_SPRB1  0x08500u   /* Sprite Bank 1: 64x64   */
+#define ADDR_SNDBUF 0x0A500u   /* audio stream buffer    */
+#define ADDR_CART   0x2A500u   /* cart RAM (~870KB)      */
 
 #define FB_WID 128
 #define FB_HEI  96
