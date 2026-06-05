@@ -1,0 +1,26 @@
+# yf
+A creative sandbox with 512 kb of ram. 
+
+### DESC
+This 16-bit fantasy console have all you need to make nostalgic games or works of art. It's modeled after the framework format, where it gains heavy inspiration from LOVE2D and cel7. The software includes:
+- VM: Lua 5.4
+- RAM: 512 KB
+- FB: 16-Bit Display with SQCIF resolution
+- AUDIO: 4 Channels with a XM Hardware Tracker
+
+### PROGRESS
+As of right now, it is still in development, with things like a cassette distribution format, api/tools and lack thereof, documentation, and overall guaranteed stability missing from the software. But to put it in simpler terms, it has everything you need to make a game in it (though depends on external tools and libraries.)
+
+### ROADMAP
+This is to monitor the software's progress:</br>
+-- [WE ARE HERE] v0.0.5: somewhat complete api</br>
+-- v0.1: complete api, stable build, cassette format and distribution</br>
+-- v0.2: complete development environment + editors, raspi + mac build</br>
+-- v0.3: homebrew platforms (3ds, vita, etc), possible dreamcast via ANTIRUINS engine</br>
+
+### GRATITUDE
+- ShrimpCatDev for heavy inspiration + palette and font via [CherryPop](https://github.com/ShrimpCatDev/CherryPop.git)
+- Zep and his entire [Lexaloffle](www.lexaloffle.com) Trilogy for setting the standard of fantasy consoles
+- Rxi for the heavy influence on the framework format via [cel7](https://rxi.itch.io/cel7)
+- and Martin Cameron for the small XM tracker library via [ibxm](https://github.com/martincameron/micromod)
+
