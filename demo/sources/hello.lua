@@ -14,6 +14,6 @@ sprsht("assets/sprites.bmp", 0)
 function hello.tick()
 	cls(0)
 	render_pal()
-	spr(1, 29, 26) 
+	spr(10, 29, 26) 
 	text("hello!\nwelcome to yf", 32, 43, 13)
 end
