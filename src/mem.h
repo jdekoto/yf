@@ -13,7 +13,8 @@
 #define ADDR_SPRB0  0x06500u   /* Sprite Bank 0: 64x64   */
 #define ADDR_SPRB1  0x08500u   /* Sprite Bank 1: 64x64   */
 #define ADDR_SNDBUF 0x0A500u   /* audio stream buffer    */
-#define ADDR_CART   0x2A500u   /* cart RAM (~870KB)      */
+#define ADDR_MAP    0x2A500u   /* tilemap vram block     */
+#define ADDR_CART   0x3A500u   /* cart RAM (~270KB)      */
 
 #define FB_WID 128
 #define FB_HEI  96

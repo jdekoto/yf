@@ -130,7 +130,7 @@ int main(int argc, char *argv[]) {
 
     if (has_extension(target, ".yfc")) {
         is_yfc_cartridge = true;
-        printf("ERROR: not fully implemented nor working\n");
+        printf("ERROR: not fully implemented.\n");
         //boot_yfc(&vm, target);
      } else {
         is_yfc_cartridge = false;
