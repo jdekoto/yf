@@ -34,22 +34,22 @@ function rgb(r, g, b)
 end
 
 local PALETTE = {
-  [0] = rgb(23, 25, 27), 	-- asphalt
-  [1] = rgb(40, 35, 123), 	-- ocean
-  [2] = rgb(50, 89, 226), 	-- afternoon
-  [3] = rgb(51, 165, 255), 	-- neon
-  [4] = rgb(10, 75, 77), 	-- rainforest
-  [5] = rgb(114, 203, 37), 	-- bamboo
-  [6] = rgb(255, 196, 56), 	-- solar
-  [7] = rgb(240, 108, 0), 	-- tangerine
-  [8] = rgb(209, 40, 65), 	-- strawberry
-  [9] = rgb(87, 20, 46), 	-- cherry
-  [10] = rgb(151, 63, 63), 	-- soil
+  [0] = rgb(23, 25, 27), 		-- asphalt
+  [1] = rgb(40, 35, 123), 		-- ocean
+  [2] = rgb(50, 89, 226), 		-- afternoon
+  [3] = rgb(51, 165, 255), 		-- neon
+  [4] = rgb(10, 75, 77), 		-- rainforest
+  [5] = rgb(114, 203, 37), 		-- bamboo
+  [6] = rgb(255, 196, 56), 		-- solar
+  [7] = rgb(240, 108, 0), 		-- tangerine
+  [8] = rgb(209, 40, 65), 		-- strawberry
+  [9] = rgb(87, 20, 46), 		-- cherry
+  [10] = rgb(151, 63, 63), 		-- soil
   [11] = rgb(241, 194, 132), 	-- caucasian
-  [12] = rgb(229, 93, 172), 	-- bubblegum
+  [12] = rgb(229, 93, 172), 		-- bubblegum
   [13] = rgb(241, 240, 238), 	-- white
   [14] = rgb(150, 165, 171), 	-- cobblestone
-  [15] = rgb(88, 108, 121), 	-- concrete
+  [15] = rgb(88, 108, 121), 		-- clay
 }
 
 -- primitve functions
@@ -336,7 +336,7 @@ function sprsht(filename, bank_id)
         return false
     end
 
-    print("Loaded " .. filename .. " (" .. width .. "x" .. abs_height .. ") into Sprite Bank " .. bank_id)
+    -- print("Loaded " .. filename .. " (" .. width .. "x" .. abs_height .. ") into Sprite Bank " .. bank_id)
     return true
 end
 

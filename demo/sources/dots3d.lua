@@ -4,6 +4,7 @@ dots3d = {}
 -- 3d dot party
 -- by zep
 -- holy moly yo
+-- yea i have no idea what brodie did.
 
 local function all(t)
     local i = 0

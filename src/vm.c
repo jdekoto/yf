@@ -127,7 +127,7 @@ void vm_reload(VM *vm, const char *path) {
         vm_shutdown(vm);
         vm_init(vm);
         vm_load(vm, path);
-        printf("reloaded: %s\n", path);
+        // printf("reloaded: %s\n", path);
     }
 }
 
@@ -148,7 +148,7 @@ void vm_runtime(VM *vm, const char *folder) {
             
             // Build the absolute file path (e.g., "runtime/graphics.lua")
             snprintf(file_buffer, sizeof(file_buffer), "%s/%s", folder, entry->d_name);
-            printf("Injecting: %s\n", file_buffer);
+            // printf("Injecting: %s\n", file_buffer);
 
             
             // Load and run the file immediately.

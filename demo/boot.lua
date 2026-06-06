@@ -15,7 +15,7 @@ function _tick()
         	cls(0)
 	elseif btnp(BTN_RIGHT) then
 		cState = cState + 1
-		if cState > 4 then cState = 1 end
+		if cState > #states then cState = 1 end
 		cls(0)
 	end
 	

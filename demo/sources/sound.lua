@@ -1,11 +1,12 @@
 
 sound = {}
 
+-- overall background music. 
 module_load("assets/heartbeats.xm")
 module_play()
 
 local wave_time = 0
--- Hardware Addresses from your architecture definitions
+-- memory addresses
 local ADDR_SNDBUF = 0x0A500
 local ADDR_AUDIO  = 0x06050
 
@@ -39,7 +40,7 @@ function sound.tick()
     text("press A/S to pause/play", 4, 80, 13)
     text("press enter to play sfx", 4, 87, 13)
 	
-    if btnp(BTN_ENTER) then sfx("assets/doop.wav", 1, 3) end
+    if btnp(BTN_ENTER) then sfx("assets/doop.wav", 1) end
     if btnp(BTN_A) then module_pause() end
     if btnp(BTN_B) then module_play() end
 	
