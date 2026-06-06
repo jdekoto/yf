@@ -2,9 +2,10 @@
 require('sources.hello')
 require('sources.sound')
 require('sources.dots3d')
+require('sources.frame')
 
 -- based on ANTIRUINS' scene example
-states = {"hello", "sound", "dots3d"}
+states = {"hello", "sound", "dots3d", "frame"}
 cState = 1 
 
 function _tick()
@@ -14,7 +15,7 @@ function _tick()
         	cls(0)
 	elseif btnp(BTN_RIGHT) then
 		cState = cState + 1
-		if cState > 3 then cState = 1 end
+		if cState > 4 then cState = 1 end
 		cls(0)
 	end
 	
@@ -26,5 +27,7 @@ function _tick()
 		sound.tick()
 	elseif mode == "dots3d" then
 		dots3d.tick()
+	elseif mode == "frame" then
+		frame.tick()
 	end
 end

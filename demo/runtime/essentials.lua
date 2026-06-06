@@ -37,6 +37,10 @@ function mid(x, y, z)
     return math.max(math.min(x, y), math.min(math.max(x, y), z))
 end
 
+function sqrt(x)
+	return math.sqrt(x)
+end
+
 function add(table, object)
 	return table.insert(table, object)
 end

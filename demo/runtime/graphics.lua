@@ -52,6 +52,7 @@ local PALETTE = {
   [15] = rgb(88, 108, 121), 	-- concrete
 }
 
+-- primitve functions
 function cls(color)
     if PALETTE[color] then
         color = PALETTE[color]
@@ -80,9 +81,7 @@ function pset(x, y, color)
     end
     
     if x < 0 or x >= FB_WID or y < 0 or y >= FB_HEI then return end
-    
-    
- 
+
     if PALETTE[color] then
         color = PALETTE[color]
     end
@@ -157,6 +156,53 @@ function line(x0, y0, x1, y1, color)
     end
 end
 
+function circ(cx, cy, r, col)
+	-- Integer representation
+	cx = cx // 1
+    	cy = cy // 1
+	
+    -- Clamp negative radii safely
+    if r < 0 then return end
+    
+    -- Handle the trivial radius 0 case (single pixel)
+    if r == 0 then
+        pset(cx, cy, col)
+        return
+    end
+
+    local x = 0
+    local y = r
+    local d = 3 - (2 * r) -- Initial decision parameter
+
+    -- Helper local function to mirror the 8 symmetrical octants cleanly
+    local function plot8(x, y)
+    		
+        pset(cx + x, cy + y, col)
+        pset(cx - x, cy + y, col)
+        pset(cx + x, cy - y, col)
+        pset(cx - x, cy - y, col)
+        pset(cx + y, cy + x, col)
+        pset(cx - y, cy + x, col)
+        pset(cx + y, cy - x, col)
+        pset(cx - y, cy - x, col)
+    end
+
+    plot8(x, y)
+
+    while x <= y do
+        x = x + 1
+        
+        if d > 0 then
+            y = y - 1
+            d = d + 4 * (x - y) + 10
+        else
+            d = d + (4 * x) + 6
+        end
+        
+        plot8(x, y)
+    end
+end
+
 function circfill(cx, cy, r, color)
     cx, cy, r = math.floor(cx), math.floor(cy), math.floor(r)
     if r < 0 then return end
@@ -191,14 +237,14 @@ end
 function clip(x, y, w, h)
     if not x or not y or not w or not h then
         -- Clear the clip: turn it off and reset to screen size
-        CLIP_ENABLED = false
+        CLIP    = false
         CLIP_X0 = 0
         CLIP_Y0 = 0
         CLIP_X1 = FB_WID - 1
         CLIP_Y1 = FB_HEI - 1
     else
         -- Engage the clip bounding region
-        CLIP_ENABLED = true
+        CLIP    = true
         CLIP_X0 = math.floor(x)
         CLIP_Y0 = math.floor(y)
         CLIP_X1 = math.floor(x + w - 1)
@@ -326,7 +372,7 @@ function spr(id, screen_x, screen_y, flip_x, flip_y)
 end
 
 --text/font rendering
--- TODO: update character map for special characters
+-- TODO: update character map for special characters+
 local ASCII_TO_FONT_INDEX = {}
 local sequential_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ !__0123456789.:(){}-+/*,=\"'_[]____?<>@#$%^__~"
 
