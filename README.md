@@ -10,6 +10,20 @@ This 16-bit fantasy console have all you need to make nostalgic games or works o
 - FB: 16-Bit Display with SQCIF resolution
 - AUDIO: 4 Channels with a XM Hardware Tracker
 
+### MEMORY MAP
+Since we are lacking documentation and everything works via peek/poke, here's the layout:
+```c
+#define ADDR_FB     0x00000u   /* 128×96 = 12,288 bytes  */
+#define ADDR_INPUT  0x06040u   /* input state            */
+#define ADDR_AUDIO  0x06050u   /* audio registers        */
+#define ADDR_FONT   0x06200u   /* system font            */
+#define ADDR_SPRB0  0x06500u   /* Sprite Bank 0: 64x64   */
+#define ADDR_SPRB1  0x08500u   /* Sprite Bank 1: 64x64   */
+#define ADDR_SNDBUF 0x0A500u   /* audio stream buffer    */
+#define ADDR_MAP    0x2A500u   /* tilemap vram block     */
+#define ADDR_CART   0x3A500u   /* cart RAM (~270KB)      */
+```
+
 ### PROGRESS
 As of right now, it is still in development, with things like a cassette distribution format, api/tools and lack thereof, documentation, and overall guaranteed stability missing from the software. But to put it in simpler terms, it has everything you need to make a game in it (though depends on external tools and libraries.)
 
