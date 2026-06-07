@@ -906,7 +906,7 @@ int write_entries(const int fd, struct tar_t ** archive, struct tar_t ** head, c
             char tarred = 0;   // whether or not the file has already been put into the archive
             if (((*tar) -> type == REGULAR) || ((*tar) -> type == NORMAL) || ((*tar) -> type == CONTIGUOUS) || ((*tar) -> type == SYMLINK)){
                 struct tar_t * found = exists(*head, files[i], 1);
-                tarred = (found != (*tar));
+                tarred = found && (found != (*tar)); 
 
                 // if file has already been included, modify the header
                 if (tarred){

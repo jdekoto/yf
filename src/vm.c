@@ -137,10 +137,7 @@ static bool folder_changed(const char *path, time_t *tracked_time) {
 }
 
 void vm_reload(VM *vm, const char *path) {
-    // 1. Run your original file tracker on boot.lua
     bool boot_changed = cart_changed(path);
-    
-    // 2. Run our multi-file tracker on the sources directory
     bool modules_changed = folder_changed("sources", &last_sources_mtime);
 
     // If EITHER has a legitimate structural modification, trigger the reboot
@@ -151,49 +148,7 @@ void vm_reload(VM *vm, const char *path) {
     }
 }
 
-/*
-void vm_reload(VM *vm, const char *path) {
-    if (cart_changed(path)) {
-        vm_shutdown(vm);
-        vm_init(vm);
-        vm_load(vm, path);
-        // printf("reloaded: %s\n", path);
-    }
-}
-*/
-
-/*
-void vm_runtime(VM *vm, const char *folder) {
-    DIR *dir = opendir(folder);
-    if (!dir) {
-        printf("ERROR: Could not open runtime folder: %s\n", folder);
-        return;
-    }
-
-    struct dirent *entry;
-    char file_buffer[1024];
-    
-    while ((entry = readdir(dir)) != NULL) {
-        // Find files ending specifically in ".lua"
-        char *ext = strrchr(entry->d_name, '.');
-        if (ext && strcmp(ext, ".lua") == 0) {
-            
-            // Build the absolute file path (e.g., "runtime/graphics.lua")
-            snprintf(file_buffer, sizeof(file_buffer), "%s/%s", folder, entry->d_name);
-            // printf("Injecting: %s\n", file_buffer);
-
-            
-            // Load and run the file immediately.
-            // Because they run in the master state, all functions map straight to _G!
-            if (luaL_dofile(vm->L, file_buffer) != LUA_OK) {
-                printf("Error loading %s: %s\n", file_buffer, lua_tostring(vm->L, -1));
-                lua_pop(vm->L, 1);
-            }
-        }
-    }
-    closedir(dir);
-} */
-
+// so you dont have to woory about it + plus wont bloat your cassette
 void vm_runtime(VM *vm) {
     if (luaL_dostring(vm->L, EYECANDY_SOURCE) != LUA_OK) {
         fprintf(stderr, "Failed to inject embedded graphics runtime: %s\n", lua_tostring(vm->L, -1));
@@ -245,4 +200,11 @@ void vm_update  (VM *vm) {
 }
 void vm_shutdown(VM *vm) { 
     lua_close(vm->L); 
+}
+
+void vm_bios(VM *vm) {
+    if (luaL_dostring(vm->L, BIOS) != LUA_OK) {
+        fprintf(stderr, "Failed to boot BIOS apparently: %s\n", lua_tostring(vm->L, -1));
+        lua_pop(vm->L, 1);
+    }
 }

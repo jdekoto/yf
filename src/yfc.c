@@ -1,110 +1,274 @@
-// yfc.c
-// this shi broke as hell
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdbool.h>
 #include "yfc.h"
-#include "mem.h"
+#include <stdlib.h>
+#include <limits.h>
+#include <unistd.h>
+#include <stdio.h>
 
-static FILE* g_cart_fd = NULL;
-static uint32_t g_archive_data_start = 0;
+#ifdef _WIN32
+    #include <direct.h>
+    #define chdir _chdir
+#else
+    #include <unistd.h>
+#endif
 
-// Helper: Converts a standard tar octal-text size string into a clean C integer
-static uint32_t parse_octal(const char* p, int max_chars) {
-    uint32_t n = 0;
-    while (*p >= '0' && *p <= '7' && max_chars-- > 0) {
-        n = (n << 3) + (*p - '0');
-        p++;
+static unsigned int oct2uint(const char *oct, unsigned int size) {
+    unsigned int out = 0;
+    unsigned int i = 0;
+
+    // Skip any leading spaces or padding characters often found in TAR headers
+    while (i < size && (oct[i] == ' ' || oct[i] == '\0')) {
+        i++;
     }
-    return n;
+
+    // Process valid octal character digits ('0' through '7')
+    while (i < size && oct[i] >= '0' && oct[i] <= '7') {
+        // Shifting left by 3 bits is exactly equivalent to multiplying by 8
+        out = (out << 3) | (unsigned int)(oct[i] - '0');
+        i++;
+    }
+
+    return out;
 }
 
-static bool init_yfc_cartridge_vfs(const char* filepath) {
-    g_cart_fd = fopen(filepath, "rb");
-    if (!g_cart_fd) {
-        printf("ENGINE ERROR: Failed to load cartridge binary: %s\n", filepath);
-        return false;
+static bool iszeroed(const void *block, size_t size) {
+    const unsigned char *p = block;
+    for (size_t i = 0; i < size; i++) {
+        if (p[i] != 0) {
+            return false; // Found a non-zero byte
+        }
     }
-
-    YfcArchiveHeader header;
-    if (fread(&header, sizeof(YfcArchiveHeader), 1, g_cart_fd) != 1) {
-        fclose(g_cart_fd);
-        return false;
-    }
-
-    if (strncmp(header.magic, YFC_MAGIC, 4) != 0) {
-        printf("ENGINE ERROR: Invalid file type signature matches.\n");
-        fclose(g_cart_fd);
-        return false;
-    }
-
-    g_archive_data_start = sizeof(YfcArchiveHeader);
-    printf("--- Mounting System Bundle: %s v%s by %s ---\n", header.title, header.version, header.author);
-    return true;
+    return true; // All bytes are zero
 }
 
-// Scans the internal file system space for a targeted relative directory path
-static uint8_t* archive_read_file(const char* target_path, uint32_t* out_size) {
-    if (!g_cart_fd) return NULL;
+int yfc_pack(const char *cartridge, const char *output) {
+    if (chdir(cartridge) != 0) {
+        printf("ERROR: Could not open or find cartridge folder: %s\n", cartridge);
+        return 1;
+    }
+  
+    char title[32] = "yf_game";
+    char author[32] = "unknown";
+    char version[8] = "1.0.0";
 
-    // Reset read cursor directly to the beginning of our archived storage deck
-    fseek(g_cart_fd, g_archive_data_start, SEEK_SET);
-    TarHeader th;
-
-    while (fread(&th, sizeof(TarHeader), 1, g_cart_fd) == 1) {
-        // Tar files append large blocks of zeros at the end of the payload stream
-        if (th.name[0] == '\0') break; 
-
-        uint32_t file_size = parse_octal(th.size, 12);
-        
-        // Match the targeted path directly
-        if (strcmp(th.name, target_path) == 0 && th.typeflag != '5') {
-            uint8_t* out_buffer = malloc(file_size + 1);
-            fread(out_buffer, 1, file_size, g_cart_fd);
-            out_buffer[file_size] = '\0'; // Clean termination block for scripts
-
-            if (out_size) *out_size = file_size;
-            return out_buffer;
+    FILE *cf = fopen("config.txt", "rb");
+    if (cf) {
+        fseek(cf, 0, SEEK_END);
+        long size = ftell(cf);
+        fseek(cf, 0, SEEK_SET);
+        char *buf = malloc(size + 1);
+        if (buf) {
+            fread(buf, 1, size, cf);
+            buf[size] = '\0';
+            parse_config(buf, "title", title, sizeof(title));
+            parse_config(buf, "author", author, sizeof(author));
+            parse_config(buf, "version", version, sizeof(version));
         }
-
-        // Jump past the current file data contents to check the next sequential header
-        // Tar file data layouts always align directly to 512-byte chunk increments
-        uint32_t padded_data_size = ((file_size + 511) / 512) * 512;
-        fseek(g_cart_fd, padded_data_size, SEEK_CUR);
+        free(buf);
+        fclose(cf);
     }
 
-    return NULL; // Target file path string not located inside our package mapping
+    int out_fd = open(output, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (out_fd < 0) {
+        perror("Error: Could not create output file");
+        return -1;
+    }
+
+    char pad_title[32] = {0};
+    char pad_author[32] = {0};
+    char pad_version[8] = {0};
+
+    strncpy(pad_title, title, 32);
+    strncpy(pad_author, author, 32);
+    strncpy(pad_version, version, 8);
+
+    write(out_fd, "YFC!", 4);
+    write(out_fd, pad_title, 32);
+    write(out_fd, pad_author, 32);
+    write(out_fd, pad_version, 8);
+
+    const char *targets[4];
+    size_t count = 0;
+    struct stat s;
+
+    if (stat("boot.lua", &s) == 0) {
+        targets[count++] = "boot.lua";
+    } else {
+        fprintf(stderr, "Critical Error: 'boot.lua' not found in project directory!\n");
+        close(out_fd);
+        return -1;
+    }
+
+    if (stat("sources", &s) == 0 && S_ISDIR(s.st_mode)) {
+        targets[count++] = "sources";
+    }
+    if (stat("assets", &s) == 0 && S_ISDIR(s.st_mode)) {
+        targets[count++] = "assets";
+    }
+    if (stat("external", &s) == 0 && S_ISDIR(s.st_mode)) {
+        targets[count++] = "external";
+    }
+
+    struct tar_t *archive = NULL;
+    struct tar_t *head = NULL;
+    int offset = 76;
+
+    if (write_entries(out_fd, &archive, &head, count, targets, &offset, 0) < 0) {
+        fprintf(stderr, "Failed archiving local files.\n");
+        close(out_fd);
+        return -1;
+    }
+    write_end_data(out_fd, offset, 0);
+
+    tar_free(archive);
+    close(out_fd);
+    printf("Successfully packed cartridge into: %s\n", output);
+    return 0;
 }
 
-int boot_yfc(VM *vm, const char* file) {
-        // Inside your main engine initialization code block:
-        if (!init_yfc_cartridge_vfs(file)) {
-            return -1;
+int yfc_verify(const char *cart_path) {
+    int fd = open(cart_path, O_RDONLY);
+    lseek(fd, 76, SEEK_SET);   /* skip yfc header */
+
+    uint8_t block[512];
+    int entry = 0;
+    while (read(fd, block, 512) == 512) {
+        if (block[0] == '\0') break;   /* end of archive */
+        /* size field is at offset 124, 12 bytes octal */
+        char size_buf[13] = {0};
+        memcpy(size_buf, block + 124, 12);
+        unsigned int size = (unsigned int)strtol(size_buf, NULL, 8);
+        printf("entry %d: name=%.100s size=%u\n", entry++, block, size);
+        /* skip data blocks */
+        lseek(fd, ((size + 511) / 512) * 512, SEEK_CUR);
+    }
+    close(fd);
+    return 0;
+}
+
+int yfc_boot(VM *vm, const char *cart_path) {
+    // 1. Open the file descriptor first before messing with current working directories
+    int fd = open(cart_path, O_RDONLY);
+    if (fd < 0) {
+        perror("Error: Could not open cartridge file");
+        close(fd);
+        return -1;
+    }
+
+    // Verify 'YFC!' magic identifier token
+    char magic[4];
+    if (read(fd, magic, 4) != 4 || strncmp(magic, "YFC!", 4) != 0) {
+        fprintf(stderr, "Error: Invalid cartridge format.\n");
+        close(fd);
+        return -1;
+    }
+
+    // Move file descriptor past the 76-byte custom header matrix straight to the TAR payload
+    lseek(fd, 76, SEEK_SET);
+
+    // 2. Map a safe sandbox path inside your Linux /tmp RAM disk environment
+    char sandbox_path[256];
+    snprintf(sandbox_path, sizeof(sandbox_path), "/tmp/yf_sandbox_%d", getpid());
+
+    // Clean up any stale configurations from a previously crashed session
+    char rm_cmd[512];
+    snprintf(rm_cmd, sizeof(rm_cmd), "rm -rf %s", sandbox_path);
+    system(rm_cmd);
+
+    if (mkdir(sandbox_path, 0700) != 0) { // Secure user permissions
+        perror("Error: Failed to create sandbox folder");
+        close(fd);
+        return -1;
+    }
+
+    // 3. Move engine's execution path into the clean workspace sandbox
+    if (chdir(sandbox_path) != 0) {
+        perror("Error: Failed to navigate into sandbox execution layer");
+        close(fd);
+        return -1;
+    }
+    
+
+    // 4. Let your native library map out the file structural node array
+    struct tar_t *archive = NULL;
+    if (tar_read(fd, &archive, 0) < 0) {
+        fprintf(stderr, "Error: Failed to parse internal archive stream layout.\n");
+        close(fd);
+        return -1;
+    }
+    
+    off_t current_offset = 76; 
+    struct tar_t *cur = archive;
+
+    while (cur) {
+        unsigned int file_size = oct2uint(cur->size, 12);
+        unsigned int padded_size = file_size;
+        if (file_size % 512) {
+            padded_size += 512 - (file_size % 512);
         }
 
-        uint32_t boot_code_size = 0;
-        // Read the entry script directly from the archive root
-        uint8_t* boot_script = archive_read_file("boot.lua", &boot_code_size);
-
-        if (!boot_script) {
-            printf("CRITICAL ENGINE ERROR: Core file 'boot.lua' not found in cartridge root!\n");
-            return -1;
+        // Check if we hit the trailing empty block markers of the TAR archive
+        lseek(fd, current_offset, SEEK_SET);
+        char block_check[512];
+        if (read(fd, block_check, 512) != 512 || iszeroed(block_check, 512)) {
+            break; 
         }
 
-        // Make sure it doesn't overflow your 512KB hardware ceiling boundaries
-        if (ADDR_CART + boot_code_size >= 0x80000) {
-            printf("CRITICAL ERROR: Boot script size overflows system constraints.\n");
-            free(boot_script);
-            return -1;
+        // Determine if this entry is a directory or a regular file.
+        // In TAR, directories end with a '/' or have a typeflag/size of 0.
+        size_t name_len = strlen(cur->name);
+        bool is_dir = (name_len > 0 && cur->name[name_len - 1] == '/') || (file_size == 0);
+
+        if (is_dir) {
+            // It's a directory! Create it standardly in our sandbox
+            #ifdef _WIN32
+                _mkdir(cur->name);
+            #else
+                mkdir(cur->name, 0755);
+            #endif
+        } else {
+            // It's a regular file! Let's jump right past its 512-byte header block
+            lseek(fd, current_offset + 512, SEEK_SET);
+
+            char *file_buf = malloc(file_size);
+            if (file_buf) {
+                if (read(fd, file_buf, file_size) == (ssize_t)file_size) {
+                    
+                    long write_len = file_size;
+
+                    // --- TARGETED LUA TEXT TRUNCATION FIX ---
+                    // If it's a Lua file, strip trailing packer padding bytes directly in memory
+                    if (name_len > 4 && strcmp(cur->name + name_len - 4, ".lua") == 0) {
+                        for (unsigned int i = 0; i < file_size; i++) {
+                            if (file_buf[i] == '\0') {
+                                write_len = i; // Cut off right where the padding begins
+                                break;
+                            }
+                        }
+                    }
+
+                    // Write the clean, unpadded data out to our sandbox folder
+                    FILE *wf = fopen(cur->name, "wb");
+                    if (wf) {
+                        if (write_len > 0) {
+                            fwrite(file_buf, 1, write_len, wf);
+                        }
+                        fclose(wf);
+                    } else {
+                        fprintf(stderr, "Error: Could not write file %s\n", cur->name);
+                    }
+                }
+                free(file_buf);
+            }
         }
 
-        memcpy(&memory[ADDR_CART], boot_script, boot_code_size);
-        memory[ADDR_CART + boot_code_size] = '\0';
-        free(boot_script);
-        
-        
-        // Execute your script space directly
-        vm_load(vm, (const char*)memory[ADDR_CART]);
-        return 0;
+        // Advance to the next entry's header position block exactly
+        current_offset += 512 + padded_size;
+        cur = cur->next;
+    }
+    
+    // Free tracking linked list links
+    tar_free(archive);
+    close(fd);
+    vm_load(vm, "boot.lua");
+    return 0;
 }

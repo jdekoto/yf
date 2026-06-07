@@ -9,6 +9,7 @@ This 16-bit fantasy console have all you need to make nostalgic games or works o
 - RAM: 512 KB
 - FB: 16-Bit Display with SQCIF resolution
 - AUDIO: 4 Channels with a XM Hardware Tracker
+- ROM: 16 MB Cassette Slot
 
 ### MEMORY MAP
 Since we are lacking documentation and everything works via peek/poke, here's the layout:
@@ -29,7 +30,7 @@ As of right now, it is still in development, with things like a cassette distrib
 
 ### ROADMAP
 This is to monitor the software's progress:</br>
--- [WE ARE HERE] v0.0.5: somewhat complete api</br>
+-- [WE ARE HERE] v0.0.7: somewhat complete api</br>
 -- v0.1: complete api, stable build, cassette format and distribution</br>
 -- v0.2: complete development environment + editors, raspi + mac build</br>
 -- v0.3: homebrew platforms (3ds, vita, etc), possible dreamcast via ANTIRUINS engine</br>

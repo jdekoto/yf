@@ -1,7 +1,7 @@
 
 CC = gcc
 CFLAGS = -std=c11 -Wall -Wextra -O2 \
-         -Isrc -Ivendor/lua -Ivendor/ibxm
+         -Isrc -Ivendor/lua -Ivendor/ibxm -Ivendor/tar
 LIBS = -lSDL2 -lm
 
 TARGET = yf
@@ -9,8 +9,9 @@ TARGET = yf
 LUA_SRC = $(filter-out vendor/lua/lua.c vendor/lua/luac.c vendor/lua/onelua.c, \
               $(wildcard vendor/lua/*.c))
 IBXM_SRC = $(wildcard vendor/ibxm/*.c)
+TAR_SRC = $(wildcard vendor/tar/*c)
 
-SRC = $(LUA_SRC) $(IBXM_SRC) src/mem.c \
+SRC = $(LUA_SRC) $(IBXM_SRC) $(TAR_SRC) src/mem.c \
 	src/audio.c src/config.c src/yfc.c src/vm.c src/main.c 
 
 all: $(TARGET)

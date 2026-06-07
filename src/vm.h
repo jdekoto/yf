@@ -18,5 +18,6 @@ void vm_load    (VM *vm, const char *path);
 void vm_update  (VM *vm);
 void vm_shutdown(VM *vm);
 void vm_reload  (VM *vm, const char *path);
+void vm_bios    (VM *vm);
 
 #endif

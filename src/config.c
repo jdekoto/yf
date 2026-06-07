@@ -3,7 +3,7 @@
 // this is both for the window title and the cart header
 
 // Helper function to extract a string value by its key
-static void parse_config(const char *file_content, const char *key, char *output, int max_len) {
+void parse_config(const char *file_content, const char *key, char *output, int max_len) {
     const char *line = file_content;
     
     while (line && *line) {
