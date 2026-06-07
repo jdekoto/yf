@@ -108,11 +108,12 @@ static bool has_extension(const char *filename, const char *ext) {
     return len > ext_len && strcmp(filename + len - ext_len, ext) == 0;
 }
 
-static void title_handler(const char *path, bool is_cart) {
+static void title_handler(const char *path, bool is_cart, long offset) {
     if (is_cart) {
         // --- CARTRIDGE BINARY EXTRACTOR ---
         int fd = open(path, O_RDONLY);
         if (fd >= 0) {
+            lseek(fd, offset, SEEK_SET);
             char magic[4];
             if (read(fd, magic, 4) == 4 && strncmp(magic, "YFC!", 4) == 0) {
                 // The title is stored immediately after the 4-byte magic token for 32 bytes
@@ -162,6 +163,60 @@ static void title_handler(const char *path, bool is_cart) {
     }
 }
 
+static long find_sentinel(int fd, long file_size) {
+    const char sentinel[8] = {
+        0xDE, 0xAD, 0xBE, 0xEF,
+        0xCA, 0xFE, 0xBA, 0xBE
+    };
+
+    lseek(fd, 0, SEEK_SET);
+    char buf[4096];
+    long pos = 0;
+    ssize_t n;
+    long found = -1;
+
+    while ((n = read(fd, buf, sizeof(buf))) > 0) {
+        for (int i = 0; i < n - 8; i++) {
+            if (memcmp(buf + i, sentinel, 8) == 0)
+                found = pos + i + 8;  /* byte AFTER sentinel = exe end */
+        }
+        pos += n;
+    }
+    return found;   /* -1 if not found */
+}
+
+static long find_appended(const char *exe_path) {
+    int fd = open(exe_path, O_RDONLY);
+    if (fd < 0) return -1;
+
+    long file_size = lseek(fd, 0, SEEK_END);
+    if (file_size < 1024) { close(fd); return -1; }
+
+    /* find where exe code ends */
+    long exe_end = find_sentinel(fd, file_size);
+    if (exe_end < 0) { close(fd); return -1; }  /* no sentinel = not a fused binary */
+
+    const char sig[4] = {'Y', 'F', 'C', '!'};
+    lseek(fd, exe_end, SEEK_SET);  /* only search from exe_end onwards */
+
+    char buf[4096];
+    long pos = exe_end;
+    ssize_t n;
+    long found_offset = -1;
+
+    while ((n = read(fd, buf, sizeof(buf))) > 0) {
+        for (int i = 0; i < n - 4; i++) {
+            if (buf[i]   == sig[0] && buf[i+1] == sig[1] &&
+                buf[i+2] == sig[2] && buf[i+3] == sig[3]) {
+                found_offset = pos + i;
+            }
+        }
+        pos += n;
+    }
+    close(fd);
+    return found_offset;
+}
+
 int main(int argc, char *argv[]) {
     
     // initiate the system before argument handling
@@ -169,7 +224,20 @@ int main(int argc, char *argv[]) {
     spu_init();
     vm_init(&vm);
     
+    // first are we fused?
+    long fused_offset = find_appended(argv[0]);
     
+    if (fused_offset >= 0) {
+        printf("[ENGINE] Fused game stream payload identified at byte offset: %ld\n", fused_offset);
+        is_yfc = true;
+        
+        // We pass the engine's own running path as the cartridge target argument!
+        title_handler(argv[0], true, fused_offset);
+        yfc_boot(&vm, argv[0], fused_offset);
+        
+        goto launch_window;
+    }
+
     if (argc < 2) {
         vm_bios(&vm);
         goto launch_window;
@@ -202,8 +270,8 @@ int main(int argc, char *argv[]) {
     if (has_extension(target, ".yfc")) {
         is_yfc = true;
         printf("WARNING: Cassette format not tested to its fullest extent\n");
-        title_handler(target, true);
-        yfc_boot(&vm, target);
+        title_handler(target, true, 0);
+        yfc_boot(&vm, target, 0);
 
      } else {
         is_yfc = false;
@@ -211,7 +279,7 @@ int main(int argc, char *argv[]) {
             printf("ERROR: Could not open or find cartridge folder: %s\n", target);
             return 1;
         }
-        title_handler(target, false);
+        title_handler(target, false, 0);
      }
      
     launch_window:
@@ -220,7 +288,7 @@ int main(int argc, char *argv[]) {
     double dt;
     while (kit_step(ctx, &dt)) {
     
-        if (argc >= 2 && !is_yfc) { vm_reload(&vm, "boot.lua"); }
+        if (!is_yfc) { vm_reload(&vm, "boot.lua"); }
         map_inputs(ctx);
         fb_expand(framebuf); 
         vm_update(&vm);
@@ -236,3 +304,8 @@ int main(int argc, char *argv[]) {
     kit_destroy(ctx);
     return 0;
 }
+
+const char end_of_executable[8] = {
+    0xDE, 0xAD, 0xBE, 0xEF,
+    0xCA, 0xFE, 0xBA, 0xBE
+};

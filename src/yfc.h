@@ -18,6 +18,6 @@
 
 int yfc_verify(const char *cart_path);
 int yfc_pack(const char *cartridge, const char *output);
-int yfc_boot(VM *vm, const char *cart_path);
+int yfc_boot(VM *vm, const char *cart_path, long offset);
 
 #endif

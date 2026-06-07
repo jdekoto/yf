@@ -145,13 +145,19 @@ int yfc_verify(const char *cart_path) {
     return 0;
 }
 
-int yfc_boot(VM *vm, const char *cart_path) {
+int yfc_boot(VM *vm, const char *cart_path, long offset) {
     // 1. Open the file descriptor first before messing with current working directories
     int fd = open(cart_path, O_RDONLY);
     if (fd < 0) {
         perror("Error: Could not open cartridge file");
         close(fd);
         return -1;
+    }
+    
+    if (offset > 0) {
+        lseek(fd, offset, SEEK_SET);
+    } else {
+        lseek(fd, 0, SEEK_SET); // Ensure we start at the true beginning of a standalone file
     }
 
     // Verify 'YFC!' magic identifier token
@@ -163,7 +169,13 @@ int yfc_boot(VM *vm, const char *cart_path) {
     }
 
     // Move file descriptor past the 76-byte custom header matrix straight to the TAR payload
-    lseek(fd, 76, SEEK_SET);
+    // Establish exactly where the TAR archive headers begin
+    off_t current_offset;
+    if (offset > 0) {
+        current_offset = offset + 76; // Fused execution mode path offset
+    } else {
+        current_offset = 76;          // Standalone cartridge execution path offset
+    }
 
     // 2. Map a safe sandbox path inside your Linux /tmp RAM disk environment
     char sandbox_path[256];
@@ -187,6 +199,8 @@ int yfc_boot(VM *vm, const char *cart_path) {
         return -1;
     }
     
+    // seek it at the correct offset since the magic checker throws it off a lil bit.
+    lseek(fd, current_offset, SEEK_SET);
 
     // 4. Let your native library map out the file structural node array
     struct tar_t *archive = NULL;
@@ -196,7 +210,6 @@ int yfc_boot(VM *vm, const char *cart_path) {
         return -1;
     }
     
-    off_t current_offset = 76; 
     struct tar_t *cur = archive;
 
     while (cur) {
