@@ -1,4 +1,4 @@
 yf
-demo/scripts
-demo/runtime
+demo/scripts/pack.sh
+src/runtime
 resources
