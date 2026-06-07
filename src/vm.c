@@ -1,6 +1,7 @@
 #include "vm.h"
 #include "mem.h"
 #include "audio.h"
+#include "runtime.h"
 #include <string.h>
 #include <dirent.h>
 
@@ -101,8 +102,6 @@ static const luaL_Reg api[] = {
     {NULL, NULL},
 };
 
-static time_t last_mtime = 0;
-
 static void call_fn(lua_State *L, const char *name) {
     lua_getglobal(L, name);
     if (!lua_isfunction(L, -1)) { lua_pop(L, 1); return; }
@@ -111,6 +110,10 @@ static void call_fn(lua_State *L, const char *name) {
         lua_pop(L, 1);
     }
 }
+
+// simple hot reload for boot.lua and sources
+static time_t last_sources_mtime = 0;
+static time_t last_mtime = 0;
 
 static bool cart_changed(const char *path) {
     struct stat s;
@@ -122,6 +125,33 @@ static bool cart_changed(const char *path) {
     return false;
 }
 
+// i know it looks exactly the same but i promised it prevents a segfault
+static bool folder_changed(const char *path, time_t *tracked_time) {
+    struct stat s;
+    if (stat(path, &s) != 0) return false;
+    if (s.st_mtime != *tracked_time) {
+        *tracked_time = s.st_mtime;
+        return *tracked_time != 0;   /* Skip the first initialization frame */
+    }
+    return false;
+}
+
+void vm_reload(VM *vm, const char *path) {
+    // 1. Run your original file tracker on boot.lua
+    bool boot_changed = cart_changed(path);
+    
+    // 2. Run our multi-file tracker on the sources directory
+    bool modules_changed = folder_changed("sources", &last_sources_mtime);
+
+    // If EITHER has a legitimate structural modification, trigger the reboot
+    if (boot_changed || modules_changed) {
+        vm_shutdown(vm);  
+        vm_init(vm);      
+        vm_load(vm, path);
+    }
+}
+
+/*
 void vm_reload(VM *vm, const char *path) {
     if (cart_changed(path)) {
         vm_shutdown(vm);
@@ -130,7 +160,9 @@ void vm_reload(VM *vm, const char *path) {
         // printf("reloaded: %s\n", path);
     }
 }
+*/
 
+/*
 void vm_runtime(VM *vm, const char *folder) {
     DIR *dir = opendir(folder);
     if (!dir) {
@@ -160,6 +192,29 @@ void vm_runtime(VM *vm, const char *folder) {
         }
     }
     closedir(dir);
+} */
+
+void vm_runtime(VM *vm) {
+    if (luaL_dostring(vm->L, EYECANDY_SOURCE) != LUA_OK) {
+        fprintf(stderr, "Failed to inject embedded graphics runtime: %s\n", lua_tostring(vm->L, -1));
+        lua_pop(vm->L, 1);
+    }
+    if (luaL_dostring(vm->L, APU_SOURCE) != LUA_OK) {
+        fprintf(stderr, "Failed to inject embedded audio runtime: %s\n", lua_tostring(vm->L, -1));
+        lua_pop(vm->L, 1);
+    }
+    if (luaL_dostring(vm->L, JOYPADS_SOURCE) != LUA_OK) {
+        fprintf(stderr, "Failed to inject embedded input runtime: %s\n", lua_tostring(vm->L, -1));
+        lua_pop(vm->L, 1);
+    }
+    if (luaL_dostring(vm->L, BATUTTA_SOURCE) != LUA_OK) {
+        fprintf(stderr, "Failed to inject embedded tilemap runtime: %s\n", lua_tostring(vm->L, -1));
+        lua_pop(vm->L, 1);
+    }
+    if (luaL_dostring(vm->L, SHORTHAND_SOURCE) != LUA_OK) {
+        fprintf(stderr, "Failed to inject embedded shorthand runtime: %s\n", lua_tostring(vm->L, -1));
+        lua_pop(vm->L, 1);
+    }
 }
 
 void vm_init(VM *vm) {
@@ -171,13 +226,11 @@ void vm_init(VM *vm) {
     luaL_setfuncs(vm->L, api, 0);
     lua_pop(vm->L, 1);
     
-    // vm_runtime(vm, "runtime");
-
+    vm_runtime(vm);
 }
 
 void vm_load(VM *vm, const char *path) {
     
-    vm_runtime(vm, "runtime");
   
     if (luaL_dofile(vm->L, path) != LUA_OK) {
         fprintf(stderr, "vm_load: %s\n", lua_tostring(vm->L, -1));
@@ -189,14 +242,7 @@ void vm_load(VM *vm, const char *path) {
 
 void vm_update  (VM *vm) { 
     call_fn(vm->L, "_tick"); 
-    /* 1. Look up the engine framework coordinator
-    lua_getglobal(vm->L, "update_inputs");
-    
-    // 2. Execute it (0 args, 0 returns)
-    if (lua_pcall(vm->L, 0, 0, 0) != LUA_OK) {
-        printf("LUA FRAME ENGINE ERROR: %s\n", lua_tostring(vm->L, -1));
-        lua_pop(vm->L, 1); // Clean the stack error string
-    }
-    */
 }
-void vm_shutdown(VM *vm) { lua_close(vm->L); }
+void vm_shutdown(VM *vm) { 
+    lua_close(vm->L); 
+}
