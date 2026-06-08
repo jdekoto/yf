@@ -2,7 +2,8 @@
 CC = gcc
 WIN_CC = x86_64-w64-mingw32-gcc
 CFLAGS = -std=c11 -Wall -Wextra -O2 \
-         -Isrc -Ivendor/lua -Ivendor/ibxm -Ivendor/microtar
+         -Isrc -Ivendor/lua -Ivendor/ibxm -Ivendor/microtar \
+         
 LIBS = -lSDL2 -lm
 
 WIN_FLAGS = -Ivendor/sdl2/include
@@ -26,8 +27,9 @@ all: $(TARGET)
 
 
 $(TARGET): $(SRC)
-	$(CC) -o $(TARGET) $(CFLAGS) $(SRC) $(LIBS)
+	$(CC) $(CFLAGS) $(SRC) $(LIBS) -o $(TARGET)
 	
 windows: $(SRC)
 	$(WIN_CC) $(CFLAGS) $(WIN_FLAGS) $(SRC) $(WIN_LDF) -o $(TARGET)
 	
+
