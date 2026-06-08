@@ -5,6 +5,13 @@ CFLAGS = -std=c11 -Wall -Wextra -O2 \
          -Isrc -Ivendor/lua -Ivendor/ibxm -Ivendor/microtar
 LIBS = -lSDL2 -lm
 
+WIN_FLAGS = -Ivendor/sdl2/include
+
+WIN_LDF =-Lvendor/sdl2/lib -lmingw32 -lSDL2main -lSDL2 -mwindows \
+	-luser32 -lgdi32 -lwinmm -limm32 -lole32 \
+	-loleaut32 -lversion -luuid -lsetupapi -lshell32 \
+	-static-libgcc -static \
+	
 TARGET = yf
 
 LUA_SRC = $(filter-out vendor/lua/lua.c vendor/lua/luac.c vendor/lua/onelua.c, \
@@ -19,12 +26,8 @@ all: $(TARGET)
 
 
 $(TARGET): $(SRC)
-	$(CC) -o $(TARGET) $(CFLAGS) $(LIBS) $(SRC)
+	$(CC) -o $(TARGET) $(CFLAGS) $(SRC) $(LIBS)
 	
 windows: $(SRC)
-	$(WIN_CC) -o $(TARGET) $(CFLAGS) \
-	-static-libgcc -static \
-	-luser32 -lgdi32 -lwinmm -limm32 -lole32 \
-	-loleaut32 -lversion -luuid -lsetupapi -lshell32 -mwindows \
-	$(LIBS) $(SRC)
+	$(WIN_CC) $(CFLAGS) $(WIN_FLAGS) $(SRC) $(WIN_LDF) -o $(TARGET)
 	

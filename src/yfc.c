@@ -6,6 +6,7 @@
 #include <fcntl.h>
 
 #ifdef _WIN32
+    #include <windows.h>
     #include <direct.h>
     #include <process.h> 
     #define chdir _chdir
@@ -49,8 +50,13 @@ static int file_close(mtar_t *tar) {
   return MTAR_ESUCCESS;
 }
 
-// yfc.c
-
+static void fix_path_slashes(char *path) {
+    for (int i = 0; path[i] != '\0'; i++) {
+        if (path[i] == '\\') {
+            path[i] = '/';
+        }
+    }
+}
 // Recursive helper to pack files and directory trees inside your targets
 static int pack_target(mtar_t *tar, const char *path) {
     #ifdef _WIN32
@@ -84,7 +90,7 @@ static int pack_target(mtar_t *tar, const char *path) {
 
             // Log the file inclusion
             printf("  [PACK] File: %s (%ld bytes)\n", path, size);
-
+            
             // Write standard file header and raw contents out via microtar
             mtar_write_file_header(tar, path, size);
             mtar_write_data(tar, buf, size);
@@ -107,6 +113,37 @@ static int pack_target(mtar_t *tar, const char *path) {
         snprintf(dir_name, sizeof(dir_name), "%s/", path);
         mtar_write_dir_header(tar, dir_name);
 
+#ifdef _WIN32
+        // --- WINDOWS NATIVE DIRECTORY CRAWLER ---
+        char search_path[512];
+        // Windows needs a wildcard (* or *.*) to search inside a folder
+        snprintf(search_path, sizeof(search_path), "%s/*", path);
+
+        WIN32_FIND_DATA find_data;
+        HANDLE hFind = FindFirstFile(search_path, &find_data);
+
+        if (hFind == INVALID_HANDLE_VALUE) {
+            fprintf(stderr, "  [PACK] Error: Could not read directory %s\n", path);
+            return -1;
+        }
+
+        do {
+            // Absolutely skip relative dot directory links to avoid infinite loops
+            if (strcmp(find_data.cFileName, ".") == 0 || strcmp(find_data.cFileName, "..") == 0) {
+                continue;
+            }
+
+            char child_path[512];
+            snprintf(child_path, sizeof(child_path), "%s/%s", path, find_data.cFileName);
+            
+            // Recursively pack nested items
+            pack_target(tar, child_path);
+
+        } while (FindNextFile(hFind, &find_data));
+
+        FindClose(hFind); // Clean up the search handle
+#else
+        // --- POSIX DIRECTORY CRAWLER (Linux / macOS) ---
         DIR *d = opendir(path);
         if (!d) {
             fprintf(stderr, "  [PACK] Error: Could not read directory %s\n", path);
@@ -115,7 +152,6 @@ static int pack_target(mtar_t *tar, const char *path) {
 
         struct dirent *entry;
         while ((entry = readdir(d)) != NULL) {
-            // Absolutely skip relative dot directory links to avoid infinite loops
             if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
                 continue;
             }
@@ -123,10 +159,10 @@ static int pack_target(mtar_t *tar, const char *path) {
             char child_path[512];
             snprintf(child_path, sizeof(child_path), "%s/%s", path, entry->d_name);
             
-            // Recursively pack nested items
             pack_target(tar, child_path);
         }
         closedir(d);
+#endif
     }
     return 0;
 }
@@ -213,7 +249,16 @@ int yfc_pack(const char *cartridge, const char *output) {
 int yfc_boot(VM *vm, const char *cart_path, long offset) {
     // 1. Setup sandbox directories standardly
     char sandbox_path[256];
-    snprintf(sandbox_path, sizeof(sandbox_path), "/tmp/yf_sandbox_%d", getpid());
+    #ifdef _WIN32
+    // Grab the standard user temp directory (e.g., C:\Users\Name\AppData\Local\Temp)
+      const char *win_tmp = getenv("TEMP");
+      if (!win_tmp) win_tmp = getenv("TMP");
+      if (!win_tmp) win_tmp = "."; // Hard fallback to local folder if env vars are missing
+    
+      snprintf(sandbox_path, sizeof(sandbox_path), "%s\\yf_sandbox_%d", win_tmp, getpid());
+    #else
+      snprintf(sandbox_path, sizeof(sandbox_path), "/tmp/yf_sandbox_%d", getpid());
+    #endif
 
     char rm_cmd[512];
     #ifdef _WIN32

@@ -3,6 +3,13 @@
 #ifndef KIT_H
 #define KIT_H
 
+#ifdef _WIN32
+  #include <SDL2/SDL.h>  
+  #include <SDL2/SDL_main.h>
+#else
+  #include <SDL2/SDL.h>  
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -12,7 +19,6 @@
 #include <setjmp.h>
 #include <time.h>
 #include <math.h>
-#include <SDL2/SDL.h>  
 #include "mem.h"
 
 enum {
