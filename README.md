@@ -20,9 +20,9 @@ Since we are lacking documentation and everything works via peek/poke, here's th
 #define ADDR_FONT   0x06200u   /* system font            */
 #define ADDR_SPRB0  0x06500u   /* Sprite Bank 0: 64x64   */
 #define ADDR_SPRB1  0x08500u   /* Sprite Bank 1: 64x64   */
-#define ADDR_SNDBUF 0x0A500u   /* audio stream buffer    */
-#define ADDR_MAP    0x2A500u   /* tilemap vram block     */
-#define ADDR_CART   0x3A500u   /* cart RAM (~270KB)      */
+#define ADDR_SNDBUF 0x10000u   /* audio stream buffer    */
+#define ADDR_MAP    0x20000u   /* tilemap block (128KB)  */
+#define ADDR_CART   0x40000u   /* cart RAM (~256KB)      */
 ```
 
 ### PROGRESS
