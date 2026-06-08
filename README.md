@@ -26,12 +26,12 @@ Since we are lacking documentation and everything works via peek/poke, here's th
 ```
 
 ### PROGRESS
-As of right now, it is still in development, with things like a cassette distribution format, api/tools and lack thereof, documentation, and overall guaranteed stability missing from the software. But to put it in simpler terms, it has everything you need to make a game in it (though depends on external tools and libraries.)
+As of right now, it is still in development, with api/tools and lack thereof, documentation, and overall guaranteed stability missing from the software. 
 
 ### ROADMAP
 This is to monitor the software's progress:</br>
--- [WE ARE HERE] v0.0.7: somewhat complete api</br>
--- v0.1: complete api, stable build, cassette format and distribution</br>
+-- [WE ARE HERE] v0.0.8: almost everything in v0.1 but a Windows Build and Docs</br>
+-- v0.1: complete api, stable build, cassette format, and documentation</br>
 -- v0.2: complete development environment + editors, raspi + mac build</br>
 -- v0.3: homebrew platforms (3ds, vita, etc), possible dreamcast via ANTIRUINS engine</br>
 

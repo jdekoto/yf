@@ -183,7 +183,7 @@ int yfc_boot(VM *vm, const char *cart_path, long offset) {
 
     // Clean up any stale configurations from a previously crashed session
     char rm_cmd[512];
-    snprintf(rm_cmd, sizeof(rm_cmd), "rm -rf %s", sandbox_path);
+    snprintf(rm_cmd, sizeof(rm_cmd), "rm -rf %s", sandbox_path);z
     system(rm_cmd);
 
     if (mkdir(sandbox_path, 0700) != 0) { // Secure user permissions
