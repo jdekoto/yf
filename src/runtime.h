@@ -529,7 +529,7 @@ const char* APU_SOURCE =
 "    file:close()\n"
 "\n"
 "    -- Calculate destination relative to the new ADDR_SNDBUF location\n"
-"    local addr_sndbuf = 0x0A500\n"
+"    local addr_sndbuf = 0x10000\n"
 "    local audio_ram_dest = addr_sndbuf + (channel * 0x8000) -- 32KB shifts\n"
 "\n"
 "    -- Safety check at 32KB\n"
@@ -637,7 +637,7 @@ const char* APU_SOURCE =
 "end\n";
 
 const char* BATUTTA_SOURCE = 
-"local ADDR_MAP   = 0x2A500  -- Updated base memory pointer to map space \n"
+"local ADDR_MAP   = 0x20000  -- Updated base memory pointer to map space \n"
 "local MAP_WIDTH  = 256\n"
 "local MAP_HEIGHT = 192\n"
 "\n"

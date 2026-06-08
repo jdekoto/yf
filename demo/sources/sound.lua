@@ -7,7 +7,7 @@ module_play()
 
 local wave_time = 0
 -- memory addresses
-local ADDR_SNDBUF = 0x0A500
+local ADDR_SNDBUF = 0x10000
 local ADDR_AUDIO  = 0x06050
 
 function sound.tick()
