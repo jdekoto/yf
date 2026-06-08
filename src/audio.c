@@ -124,6 +124,12 @@ void spu_callback(void *userdata, uint8_t *stream, int len) {
 
             poke(ADDR_AUDIO + 0x32, (uint8_t)(pcm_pos[1] & 0xFF));        // Ch1 Playhead Low Byte
             poke(ADDR_AUDIO + 0x33, (uint8_t)((pcm_pos[1] >> 8) & 0xFF)); // Ch1 Playhead High Byte
+            
+            poke(ADDR_AUDIO + 0x34, (uint8_t)(pcm_pos[2] & 0xFF));        // Ch2 Playhead Low Byte
+            poke(ADDR_AUDIO + 0x35, (uint8_t)((pcm_pos[2] >> 8) & 0xFF)); // Ch2 Playhead High Byte
+            
+            poke(ADDR_AUDIO + 0x36, (uint8_t)(pcm_pos[3] & 0xFF));        // Ch3 Playhead Low Byte
+            poke(ADDR_AUDIO + 0x37, (uint8_t)((pcm_pos[3] >> 8) & 0xFF)); // Ch3 Playhead High Byte
         }
 
         // Apply clean clip bounding

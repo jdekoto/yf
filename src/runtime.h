@@ -637,7 +637,7 @@ const char* APU_SOURCE =
 "end\n";
 
 const char* BATUTTA_SOURCE = 
-"local ADDR_MAP   = 0x20000  -- Updated base memory pointer to map space \n"
+"local ADDR_MAP   = 0x30000  -- Updated base memory pointer to map space \n"
 "local MAP_WIDTH  = 256\n"
 "local MAP_HEIGHT = 192\n"
 "\n"
