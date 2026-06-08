@@ -24,6 +24,7 @@ Since we are lacking documentation and everything works via peek/poke, here's th
 #define ADDR_MAP    0x2A500u   /* tilemap vram block     */
 #define ADDR_CART   0x3A500u   /* cart RAM (~270KB)      */
 ```
+<img width="480" height="297" alt="peekaboo" src="https://github.com/user-attachments/assets/fa4c0ea3-3452-46ee-bdd2-9a3f0f42bbec" />
 
 ### PROGRESS
 As of right now, it is still in development, with things like a cassette distribution format, api/tools and lack thereof, documentation, and overall guaranteed stability missing from the software. But to put it in simpler terms, it has everything you need to make a game in it (though depends on external tools and libraries.)
