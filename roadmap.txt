@@ -9,11 +9,11 @@ what we have now:
 	system font (remap special characters)
 	audio processing unit (including tracker)
 	kbd input (ill map controllers later)
-	api/polished vm (only map funcs are missing)
+	api/polished vm (though subject to rewrite)
+	cart format (not fully tested but works for the most part)
 	
 what needs to be done:
-	2 controllers
-	cart format (can package but cant execute)
+	2 controllers possibly
 	rewrite (maybe)
 	file finder + project tools
 	
