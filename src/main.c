@@ -13,7 +13,11 @@
 
 #ifdef _WIN32
     #include <direct.h>
+    #include <process.h> // Needed for getpid() on Windows
     #define chdir _chdir
+    #define getpid _getpid
+    // Force mkdir to drop the mode argument on Windows
+    #define mkdir(path, mode) _mkdir(path) 
 #else
     #include <unistd.h>
 #endif

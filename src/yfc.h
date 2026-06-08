@@ -10,7 +10,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <limits.h>
-#include "tar.h"
+#include "microtar.h"
 #include "config.h"
 #include "vm.h"
 
