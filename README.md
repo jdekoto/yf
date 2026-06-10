@@ -21,8 +21,8 @@ Since we are lacking documentation and everything works via peek/poke, here's th
 #define ADDR_SPRB0  0x06500u   /* Sprite Bank 0: 64x64   */
 #define ADDR_SPRB1  0x08500u   /* Sprite Bank 1: 64x64   */
 #define ADDR_SNDBUF 0x10000u   /* audio stream buffer    */
-#define ADDR_MAP    0x20000u   /* tilemap block (128KB)  */
-#define ADDR_CART   0x40000u   /* cart RAM (~256KB)      */
+#define ADDR_MAP    0x30000u   /* tilemap block (128KB)  */
+#define ADDR_CART   0x50000u   /* cart RAM (~256KB)      */
 ```
 
 ### PROGRESS
@@ -30,7 +30,7 @@ As of right now, it is still in development, with api/tools and lack thereof, do
 
 ### ROADMAP
 This is to monitor the software's progress:</br>
--- [WE ARE HERE] v0.0.8: almost everything in v0.1 but a Windows Build and Docs</br>
+-- [WE ARE HERE] v0.0.9: almost everything in v0.1 but Docs</br>
 -- v0.1: complete api, stable build, cassette format, and documentation</br>
 -- v0.2: complete development environment + editors, raspi + mac build</br>
 -- v0.3: homebrew platforms (3ds, vita, etc), possible dreamcast via ANTIRUINS engine</br>
