@@ -5,7 +5,7 @@ A creative sandbox with 512 kb of ram.
 
 ### DESC
 This 16-bit fantasy console have all you need to make nostalgic games or works of art. It's modeled after the framework format, where it gains heavy inspiration from LOVE2D and cel7. The software includes:
-- VM: Lua 5.4 (with hot reload)
+- VM: Lua 5.4 CPU clocked at 6M ops /sec (with hot reload)
 - RAM: 512 KB
 - FB: 16-Bit Display with SQCIF resolution
 - AUDIO: 4 Channels with a XM Hardware Tracker

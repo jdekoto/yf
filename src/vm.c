@@ -1,9 +1,13 @@
 #include "vm.h"
 #include "mem.h"
 #include "audio.h"
+#include "api.h"
 #include "runtime.h"
 #include <string.h>
 #include <dirent.h>
+
+/* vm.h */
+#define VM_OPS_PER_FRAME  100000  /* ~4.5M insts / sec i think */
 
 
 /* ── memory API ──────────────────────────────────────────────── */
@@ -43,19 +47,28 @@ static int l_reload(lua_State *L) {
     uint32_t dest_addr   = (uint32_t)luaL_checknumber(L, 2);
 
     FILE *f = fopen(filename, "rb");
-    if (f) {
-        // Find out how big the file is
-        fseek(f, 0, SEEK_END);
-        long size = ftell(f);
-        fseek(f, 0, SEEK_SET);
-
-        // Safety check to ensure we don't overflow the system RAM limits
-        if (dest_addr + size <= RAM_SIZE) {
-            fread(memory + dest_addr, 1, size, f);
-        }
-        fclose(f);
+    if (!f) {
+        printf("[Engine ERROR] Could not open file: \"%s\". Check your path!\n", filename);
+        lua_pushboolean(L, 0); // Return false to Lua
+        return 1;
     }
-    return 0;
+
+    // Find out how big the file is
+    fseek(f, 0, SEEK_END);
+    long size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+
+    // Safety check to ensure we don't overflow the system RAM limits
+    if (dest_addr + size <= RAM_SIZE) {
+        size_t read_bytes = fread(memory + dest_addr, 1, size, f);
+        lua_pushboolean(L, 1); // Return true to Lua
+    } else {
+        printf("[Engine ERROR] Out of bounds! Address 0x%X + Size %ld exceeds RAM_SIZE\n", dest_addr, size);
+        lua_pushboolean(L, 0); // Return false to Lua
+    }
+
+    fclose(f);
+    return 1;
 }
 
 // Usage in Lua: cstore_file_c("assets/savegame.dat", src_memory_address, byte_count)
@@ -172,16 +185,29 @@ void vm_runtime(VM *vm) {
     }
 }
 
+static int  g_ops       = 0;
+static bool g_cpu_limit = false;
+
+static void cpu_hook(lua_State *L, lua_Debug *ar) {
+    (void)ar;
+    g_ops += 100;   /* hook fires every 100 ops */
+    if (g_ops >= VM_OPS_PER_FRAME) {
+        g_cpu_limit = true;
+        luaL_error(L, "MAXIMUM CPU LEVEL REACHED");
+    }
+}
+
 void vm_init(VM *vm) {
     vm->L = luaL_newstate();
     luaL_openlibs(vm->L);
+    lua_sethook(vm->L, cpu_hook, LUA_MASKCOUNT, 100);
 
     /* expose API globally */
     lua_getglobal(vm->L, "_G");
     luaL_setfuncs(vm->L, api, 0);
     lua_pop(vm->L, 1);
     
-    vm_runtime(vm);
+    api_register(vm->L);
 }
 
 void vm_load(VM *vm, const char *path) {
@@ -196,6 +222,8 @@ void vm_load(VM *vm, const char *path) {
 }
 
 void vm_update  (VM *vm) { 
+    g_ops       = 0;
+    g_cpu_limit = false;
     call_fn(vm->L, "_tick"); 
 }
 void vm_shutdown(VM *vm) { 

@@ -5,7 +5,7 @@ function frame.tick()
 	cls(0)
 	-- peekaboo type shi
 	local x = 64
-	x = x + sin(t()*8)*40
+	x += sin(t()*16)*40
 	
 	clip(28, 16, 71, 60)
 	-- draw circle in clip frame.

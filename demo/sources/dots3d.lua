@@ -34,7 +34,7 @@ function dots3d.tick()
 					p={}
 					p.x=x p.y=y p.z=z
 					p.col=1 + flr(x*2+y*3)%10
-					table.insert(pt,p)
+					add(pt,p)
 				end
 			end
 		end
@@ -43,10 +43,10 @@ function dots3d.tick()
 		--transform:
 		--world space -> camera space
 		
-		p.cx,p.cz=rot(p.x,p.z,t()*2)
-		p.cy,p.cz=rot(p.y,p.cz,t()*1.25)
+		p.cx,p.cz=rot(p.x,p.z,t()*4)
+		p.cy,p.cz=rot(p.y,p.cz,t()*2.5)
 		
-		p.cz = p.cz + 2 + cos(t()*1.25)
+		p.cz = p.cz + 2 + cos(t()*2.5)
 	end
 	
 	-- sort furthest -> closest

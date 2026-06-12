@@ -23,11 +23,6 @@
 #define LUAI_ASSERT
 
 
-
-/* compiled with -O0, Lua uses a lot of C stack space... */
-#undef LUAI_MAXCSTACK
-#define LUAI_MAXCSTACK		400
-
 /* to avoid warnings, and to make sure value is really unused */
 #define UNUSED(x)       (x=0, (void)(x))
 
@@ -133,6 +128,11 @@ LUA_API void *debug_realloc (void *ud, void *block,
 /* make stack-overflow tests run faster */
 #undef LUAI_MAXSTACK
 #define LUAI_MAXSTACK   50000
+
+
+/* test mode uses more stack space */
+#undef LUAI_MAXCCALLS
+#define LUAI_MAXCCALLS	180
 
 
 /* force Lua to use its own implementations */

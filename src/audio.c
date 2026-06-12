@@ -3,60 +3,68 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <errno.h>
+
 #include "audio.h"
+#include "micromod.h" // Added micromod header
 
 // Unified internal sample position counters for all 4 channels
 static uint32_t pcm_pos[4] = {0, 0, 0, 0};
 
-// IBXM Context Trackers
-static struct module* active_module = NULL;
-static struct replay* active_replay = NULL;
-static int* ibxm_mix_buf = NULL;
+// Micromod Context Trackers
+static signed char* mod_data_buf = NULL; // Must remain allocated during playback
+static bool tracker_loaded = false;
 
-static int ibxm_buffer_remaining = 0;
-static int ibxm_buffer_index = 0;
+// --- NEW INTERNAL FADE CONTROL STATES ---
+static float c_tracker_volume = 1.0f;
+static float c_fade_target = 1.0f;
+static float c_fade_step_per_chunk = 0.0f;
 
 void spu_callback(void *userdata, uint8_t *stream, int len) {
-    // Clear playback destination stream to absolute silence (128 unsigned 8-bit)
+    
     memset(stream, 128, len);
 
-    // Read general tracker flags directly from their dedicated memory spaces
     uint8_t tracker_enabled = memory[ADDR_TRACKER_ENABLED];
-    uint8_t tracker_volume_raw = memory[ADDR_TRACKER_VOLUME];
 
-    // --- STREAM REPLAY SAMPLES INTO CHANNEL 0 & 1 RAM ---
-    if (active_replay && tracker_enabled == 1) {
-        // We look at where the mixer loop currently IS (pcm_pos)
-        // and fill the buffer exactly from that point forward!
+    // --- AUTOMATIC BACKGROUND C FADE TICKER ---
+    if (tracker_loaded && tracker_enabled == 1) {
+        if (c_tracker_volume != c_fade_target) {
+            c_tracker_volume += c_fade_step_per_chunk;
+            
+            // Check boundary overshoots
+            if ((c_fade_step_per_chunk > 0.0f && c_tracker_volume >= c_fade_target) ||
+                (c_fade_step_per_chunk < 0.0f && c_tracker_volume <= c_fade_target)) {
+                c_tracker_volume = c_fade_target;
+                c_fade_step_per_chunk = 0.0f;
+            }
+            // Update the system register so memory read operations reflect the fade change
+            memory[ADDR_TRACKER_VOLUME] = (uint8_t)(c_tracker_volume * 255.0f);
+        }
+
+        uint8_t tracker_volume_raw = memory[ADDR_TRACKER_VOLUME];
         uint32_t write_pos_0 = pcm_pos[0];
         uint32_t write_pos_1 = pcm_pos[1];
 
+        short micromod_buf[len * 2];
+        memset(micromod_buf, 0, sizeof(micromod_buf));
+        micromod_get_audio(micromod_buf, len);
+
         for (int i = 0; i < len; i++) {
-            if (ibxm_buffer_remaining <= 0) {
-                ibxm_buffer_remaining = replay_get_audio(active_replay, ibxm_mix_buf, 0);
-                ibxm_buffer_index = 0;
-            }
+            int micromod_left  = micromod_buf[i * 2];
+            int micromod_right = micromod_buf[i * 2 + 1];
 
-            int ibxm_left  = ibxm_mix_buf[ibxm_buffer_index * 2];
-            int ibxm_right = ibxm_mix_buf[ibxm_buffer_index * 2 + 1];
+            uint8_t left_u8  = (uint8_t)(((micromod_left  / 256) + 128) & 0xFF);
+            uint8_t right_u8 = (uint8_t)(((micromod_right / 256) + 128) & 0xFF);
 
-            // Convert raw IBXM 16-bit signed stereo streams to standard 8-bit unsigned values
-            uint8_t left_u8  = (uint8_t)(((ibxm_left  / 256) + 128) & 0xFF);
-            uint8_t right_u8 = (uint8_t)(((ibxm_right / 256) + 128) & 0xFF);
-
-            // Poke them precisely into the circular track slots
             poke(ADDR_SNDBUF + (0 * 0x8000) + write_pos_0, left_u8);
             poke(ADDR_SNDBUF + (1 * 0x8000) + write_pos_1, right_u8);
 
-            // Advance the local write cursors safely inside the 32KB boundaries
             write_pos_0 = (write_pos_0 + 1) % 0x8000;
             write_pos_1 = (write_pos_1 + 1) % 0x8000;
-
-            ibxm_buffer_index++;
-            ibxm_buffer_remaining--;
         }
 
-        // Set control registers so the mixer knows they are executing active data stream cycles
         poke(CH_STATUS(0), 1);
         poke(CH_STATUS(1), 1);
         poke(CH_VOLUME(0), tracker_volume_raw);
@@ -118,7 +126,6 @@ void spu_callback(void *userdata, uint8_t *stream, int len) {
             active_channels++;
             
             // Poke the current playhead indices into audio register space so Lua can see them
-    // We divide by 256 to fit the 16-bit position safely into two 8-bit registers per channel
             poke(ADDR_AUDIO + 0x30, (uint8_t)(pcm_pos[0] & 0xFF));        // Ch0 Playhead Low Byte
             poke(ADDR_AUDIO + 0x31, (uint8_t)((pcm_pos[0] >> 8) & 0xFF)); // Ch0 Playhead High Byte
 
@@ -159,38 +166,105 @@ void spu_init() {
     SDL_PauseAudio(0); // Engage playback background thread
 }
 
-// The core engine loader (Same as before, sets up active_replay at 22050 Hz)
+// The core engine loader - Sets up micromod at 22050 Hz
 int spu_feedtracker(const char* filename) {
-    char error_message[64];
-
     FILE* f = fopen(filename, "rb");
-    if (!f) { return 0; }
+    if (!f) { printf("cant open %s\n", filename); return 1; }
 
     fseek(f, 0, SEEK_END);
     long size = ftell(f);
     fseek(f, 0, SEEK_SET);
 
-    char* raw_data_buf = malloc(size);
-    fread(raw_data_buf, 1, size, f);
+    // Free the old module data *only* when loading a replacement module
+    if (mod_data_buf) {
+        free(mod_data_buf);
+        mod_data_buf = NULL;
+        tracker_loaded = false;
+    }
+
+    mod_data_buf = malloc(size);
+    if (!mod_data_buf) {
+        fclose(f);
+        return 1;
+    }
+
+    fread(mod_data_buf, 1, size, f);
     fclose(f);
 
-    struct data module_data = { .buffer = raw_data_buf, .length = size };
+    // Initialise micromod with the raw data buffer and sampling rate
+    if (micromod_initialise(mod_data_buf, 22050) < 0) {
+        printf("couldnt load the module properly\n");
+        free(mod_data_buf);
+        mod_data_buf = NULL;
+        return 1;
+    }
 
-    // if theres a new module requested, eradicate the currently loaded
-    if (active_replay)  { dispose_replay(active_replay); active_replay = NULL; }
-    if (active_module)  { dispose_module(active_module); active_module = NULL; }
-    if (ibxm_mix_buf)   { free(ibxm_mix_buf); ibxm_mix_buf = NULL; }
+    // Set a baseline safe mixing gain for 4-channel classic MODs
+    micromod_set_gain(64);
 
-    active_module = module_load(&module_data, error_message);
-    free(raw_data_buf);
+    tracker_loaded = true;
+    return 0; // Success
+}
 
-    if (!active_module) { return 0; }
+// --- NEW PROCEDURAL C API HOOKS FOR LUA ---
 
-    active_replay = new_replay(active_module, 22050, 1);
-    if (!active_replay) { printf("couldnt load the module properly"); }
-    int mix_buf_len = calculate_mix_buf_len(22050);
-    ibxm_mix_buf = calloc(mix_buf_len * 4, sizeof(int));
+static char current_track_path[1024] = {0};
 
-    return 0;
+void spu_play_module(const char* filename, float volume) {
+    // SMART INTERCEPT: If tracker is already loaded and it's the EXACT same file name...
+    if (tracker_loaded && strcmp(current_track_path, filename) == 0) {
+        // Just restore the hardware execution flag and reset volume parameters!
+        // This acts as a completely seamless, zero-overhead resume.
+        c_tracker_volume = volume;
+        c_fade_target = volume;
+        c_fade_step_per_chunk = 0.0f;
+        
+        memory[ADDR_TRACKER_VOLUME] = (uint8_t)(volume * 255.0f);
+        memory[ADDR_TRACKER_ENABLED] = 1; // Wake up background thread processing
+        return;
+    }
+
+    // Otherwise, this is a completely new file swap: read from disk and re-init
+    if (spu_feedtracker(filename) == 0) {
+        // Cache the newly loaded filename path string for future comparison checks
+        strncpy(current_track_path, filename, sizeof(current_track_path) - 1);
+        current_track_path[sizeof(current_track_path) - 1] = '\0';
+    }
+    
+    c_tracker_volume = volume;
+    c_fade_target = volume;
+    c_fade_step_per_chunk = 0.0f;
+    
+    memory[ADDR_TRACKER_VOLUME] = (uint8_t)(volume * 255.0f);
+    memory[ADDR_TRACKER_ENABLED] = 1;
+}
+
+void spu_pause_module(void) {
+    memory[ADDR_TRACKER_ENABLED] = 0;
+}
+
+void spu_fade_module(float target, int duration_frames) {
+    c_fade_target = target;
+    if (duration_frames <= 0) {
+        c_tracker_volume = target;
+        c_fade_step_per_chunk = 0.0f;
+        memory[ADDR_TRACKER_VOLUME] = (uint8_t)(target * 255.0f);
+    } else {
+        // Core Audio Math Transformation:
+        // 22050 samples/sec / 256 samples/callback = ~86.13 callback chunks per second.
+        // Assuming your engine updates at a stable 60 frames per second:
+        float chunks_per_frame = 86.1328f / 60.0f; 
+        float total_chunks = (float)duration_frames * chunks_per_frame;
+        
+        c_fade_step_per_chunk = (target - c_tracker_volume) / total_chunks;
+    }
+}
+
+void spu_stop_module(void) {
+    memory[ADDR_TRACKER_ENABLED] = 0; // Turn off mixer tracking
+    if (tracker_loaded) {
+        // Micromod native function to instantly rewind playhead to sequence position 0
+        micromod_set_position(0); 
+    }
 }
 

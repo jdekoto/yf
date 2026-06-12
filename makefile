@@ -2,7 +2,7 @@
 CC = gcc
 WIN_CC = x86_64-w64-mingw32-gcc
 CFLAGS = -std=c11 -Wall -Wextra -O2 \
-         -Isrc -Ivendor/lua -Ivendor/ibxm -Ivendor/microtar \
+         -Isrc -Ivendor/lua -Ivendor/micromod -Ivendor/microtar \
          
 LIBS = -lSDL2 -lm
 
@@ -17,11 +17,11 @@ TARGET = yf
 
 LUA_SRC = $(filter-out vendor/lua/lua.c vendor/lua/luac.c vendor/lua/onelua.c, \
               $(wildcard vendor/lua/*.c))
-IBXM_SRC = $(wildcard vendor/ibxm/*.c)
+MMOD_SRC = $(wildcard vendor/micromod/*.c)
 TAR_SRC = $(wildcard vendor/microtar/*c)
 
-SRC = $(LUA_SRC) $(IBXM_SRC) $(TAR_SRC) src/mem.c \
-	src/audio.c src/config.c src/yfc.c src/vm.c src/main.c 
+SRC = $(LUA_SRC) $(MMOD_SRC) $(TAR_SRC) src/mem.c \
+	src/audio.c src/config.c src/yfc.c src/api.c src/vm.c src/main.c 
 
 all: $(TARGET)
 

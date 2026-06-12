@@ -2,8 +2,8 @@
 sound = {}
 
 -- overall background music. 
-module_load("assets/heartbeats.xm")
-module_play()
+mus = module("assets/driftmix.mod", 0.8)
+mus.play()
 
 local wave_time = 0
 -- memory addresses
@@ -12,7 +12,6 @@ local ADDR_AUDIO  = 0x06050
 
 function sound.tick()
     cls(0)
-    module_tick()
 	
 	-- 1. Read the live 16-bit playhead indices directly from the SPU, only the left channel.
     local playhead_ch0 = peek(ADDR_AUDIO + 0x30) | (peek(ADDR_AUDIO + 0x31) << 4)
@@ -40,8 +39,8 @@ function sound.tick()
     text("press A/S to pause/play", 4, 80, 13)
     text("press enter to play sfx", 4, 87, 13)
 	
-    if btnp(BTN_ENTER) then sfx("assets/doop.wav", 1) end
-    if btnp(BTN_A) then module_pause() end
-    if btnp(BTN_B) then module_play() end
+    if btnp(8) then sfx("assets/doop.wav", 1) end
+    if btnp(4) then mus.pause() end
+    if btnp(5) then mus.play() end
 	
 end
