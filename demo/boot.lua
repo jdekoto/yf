@@ -13,6 +13,7 @@ states = {"hello", "sprite", "sound", "dots3d", "frame", "flashrom", "map"}
 cState = 1 
 
 function _tick()
+
 	if btnp(BTN_LEFT) then
 		cState = cState - 1
         	if cState < 1 then cState = #states end

@@ -11,7 +11,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <time.h>
-#include <SDL2/SDL.h>
+#include <SDL2/SDL.h
 #include <lua.h>
 #include <lauxlib.h>
 
