@@ -1,0 +1,9 @@
+
+yellowfeather manual.
+
+introduction:
+yo. (please excuse ANY errors in the text whatsoever, im a really bad typer.)
+in this manual, i hope to teach you guys the ins and outs of this fantasy console; which includes the API, cassette formatting, appending, etc. 
+
+specifications:
+this console has a Lua 5.4 VM capped at 6M operations per sec, paired with 512 KB of ram, and a 128 * 96 resolution to play with. PLENTY of material to work with
