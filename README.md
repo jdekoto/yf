@@ -14,7 +14,7 @@ This 16-bit fantasy console have all you need to make nostalgic games or works o
 ### MEMORY MAP
 Since we are lacking documentation and everything works via peek/poke, here's the layout:
 ```c
-#define ADDR_FB     0x00000u   /* 128×96 = 12,288 bytes  */
+#define ADDR_FB     0x00000u   /* 128×96 =  24,576 bytes */
 #define ADDR_INPUT  0x06040u   /* input state            */
 #define ADDR_AUDIO  0x06050u   /* audio registers        */
 #define ADDR_FONT   0x06200u   /* system font            */
@@ -39,5 +39,5 @@ This is to monitor the software's progress:</br>
 - ShrimpCatDev for heavy inspiration + palette and font via [CherryPop](https://github.com/ShrimpCatDev/CherryPop.git)
 - Zep and his entire [Lexaloffle](www.lexaloffle.com) Trilogy for setting the standard of fantasy consoles
 - Rxi for the heavy influence on the framework format via [cel7](https://rxi.itch.io/cel7)
-- and Martin Cameron for the small XM tracker library via [ibxm](https://github.com/martincameron/micromod)
+- and Martin Cameron for the small MOD tracker library via [micromod](https://github.com/martincameron/micromod)
 
