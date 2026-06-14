@@ -300,7 +300,7 @@ kit_Context* kit_create(const char *title, int w, int h, int flags) {
     ctx->win_w = w;
     ctx->win_h = h;
     
-    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER) < 0) {
         printf("SDL could not initialize! SDL_Error: %s\n", SDL_GetError());
     } else {
         ctx->window = SDL_CreateWindow(title, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, ctx->win_w, ctx->win_h, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);

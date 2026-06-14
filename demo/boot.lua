@@ -4,11 +4,12 @@ require('sources.sprite')
 require('sources.sound')
 require('sources.dots3d')
 require('sources.frame')
+require('sources.flashrom')
 require('sources.map')
 
 
 -- based on ANTIRUINS' scene example
-states = {"hello", "sprite", "sound", "dots3d", "frame", "map"}
+states = {"hello", "sprite", "sound", "dots3d", "frame", "flashrom", "map"}
 cState = 1 
 
 function _tick()
@@ -23,7 +24,6 @@ function _tick()
 	end
 	
 	local mode = states[cState]
-	--print("mode: %d ", mode)
 	if mode == "hello" then 
 		hello.tick()
 	elseif mode == "sprite" then
@@ -34,12 +34,14 @@ function _tick()
 		dots3d.tick()
 	elseif mode == "frame" then
 		frame.tick()
+	elseif mode == "flashrom" then
+		flashrom.tick()
 	elseif mode == "map" then
 		camera(0,0)
 		maptest.tick()
 	end
 	
-	-- reset the camera
+	-- reset the camera for the map since its lowk global
 	if (mode == "map") then 
 		camera()
 	end

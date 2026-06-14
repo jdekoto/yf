@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <time.h>
+#include <SDL2/SDL.h>
 #include <lua.h>
 #include <lauxlib.h>
 
@@ -49,6 +50,13 @@ static int g_clip_y1 = FB_HEI - 1;
 // Standard RGB565 packing (5 bits Red, 6 bits Green, 5 bits Blue)
 #define RGB_CONVERT(r, g, b) ((((r) >> 3) << 11) | (((g) >> 2) << 5) | ((b) >> 3))
 static uint16_t g_palette[16];
+
+/* ── save data handling ──────────────────────────────────────── */
+#define CARTDATA_SLOTS 64
+
+static char g_cartdata_path[512] = {0};
+static int32_t g_cartdata_ram[CARTDATA_SLOTS] = {0};
+static bool g_cartdata_active = false;
 
 /* ═══════════════════════════════════════════════════════════════
    INTERNAL PIXEL & COLOR HELPERS
@@ -709,6 +717,10 @@ static int l_pal(lua_State *L) {
    SOUND PROCESSING API
    ═══════════════════════════════════════════════════════════════ */
 
+/* sfx(filename, [volume], [channel]) - plays sfx sound from cassette
+volume - defaults to 1.0
+channel - defaults to 2, limited to 2 and 3
+*/
 int l_sfx(lua_State *L) {
     const char *filename = luaL_checkstring(L, 1);
     double vol_mult      = luaL_optnumber(L, 2, 1.0);
@@ -828,6 +840,87 @@ int l_module(lua_State *L) {
     return 1; 
 }
 
+
+/* ═══════════════════════════════════════════════════════════════
+   FLASHROM UTILITES
+   ═══════════════════════════════════════════════════════════════ */
+ 
+// Internal helper to flush RAM contents directly to the OS filesystem
+static void flush_cartdata() {
+    if (!g_cartdata_active || g_cartdata_path[0] == '\0') return;
+
+    FILE *f = fopen(g_cartdata_path, "wb");
+    if (f) {
+        fwrite(g_cartdata_ram, sizeof(int32_t), CARTDATA_SLOTS, f);
+        fclose(f);
+    }
+}
+
+/* flash("your_company_or_game_id") -
+Opens or creates the directory, loads data into RAM if it exists */
+static int l_flash(lua_State *L) {
+    const char *id = luaL_checkstring(L, 1);
+    
+    // 1. Fetch the safe, OS-sanctioned directory path
+    char *pref_dir = SDL_GetPrefPath("yellowfeather", "flashrom");
+    if (!pref_dir) {
+        return luaL_error(L, "Failed to resolve safe storage directory via SDL.");
+    }
+
+    snprintf(g_cartdata_path, sizeof(g_cartdata_path), "%s%s.dat", pref_dir, id);
+    
+    // SDL_GetPrefPath returns a dynamically allocated string; we must free it!
+    SDL_free(pref_dir);
+
+    memset(g_cartdata_ram, 0, sizeof(g_cartdata_ram));
+    g_cartdata_active = true;
+
+    FILE *f = fopen(g_cartdata_path, "rb");
+    if (f) {
+        fread(g_cartdata_ram, sizeof(int32_t), CARTDATA_SLOTS, f);
+        fclose(f);
+    }
+
+    return 0;
+}
+
+/* fget(index) - returns integer value */
+static int l_fget(lua_State *L) {
+    if (!g_cartdata_active) {
+        return luaL_error(L, "cartdata() must be called before calling dget().");
+    }
+
+    int index = (int)luaL_checkinteger(L, 1);
+    if (index < 0 || index >= CARTDATA_SLOTS) {
+        return luaL_error(L, "dget index out of bounds (0-%d).", CARTDATA_SLOTS - 1);
+    }
+
+    lua_pushinteger(L, g_cartdata_ram[index]);
+    return 1;
+}
+
+/* fset(index, value) - set value to flash index */
+static int l_fset(lua_State *L) {
+    if (!g_cartdata_active) {
+        return luaL_error(L, "flash() must be called before calling fset().");
+    }
+
+    int index = (int)luaL_checkinteger(L, 1);
+    int32_t value = (int32_t)luaL_checkinteger(L, 2);
+
+    if (index < 0 || index >= CARTDATA_SLOTS) {
+        return luaL_error(L, "fset index out of bounds (0-%d).", CARTDATA_SLOTS - 1);
+    }
+
+    // Update value in RAM
+    g_cartdata_ram[index] = value;
+
+    // Flush to disk immediately upon mutation to protect against sudden crashes
+    flush_cartdata(); 
+
+    return 0;
+}
+
 /* ═══════════════════════════════════════════════════════════════
    SHORTHAND AMENITIES
    ═══════════════════════════════════════════════════════════════ */
@@ -928,6 +1021,11 @@ static const luaL_Reg api[] = {
     { "mget",      l_mget      },
     { "mset",      l_mset      },
     { "map",       l_map       },
+    
+    /* flashrom handling */
+    { "flash",     l_flash     },
+    { "fget",      l_fget      },
+    { "fset",      l_fset      },
 
     /* math amenities */
     { "clamp",     l_clamp     },
