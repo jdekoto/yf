@@ -31,13 +31,35 @@ static int l_memset(lua_State *L) {
 }
 
 static int l_memcpy(lua_State *L) {
-    uint32_t dest  = (uint32_t)luaL_checknumber(L, 1);
-    uint32_t src   = (uint32_t)luaL_checknumber(L, 2);
-    uint32_t count = (uint32_t)luaL_checknumber(L, 3);
-
-    if (dest + count <= RAM_SIZE && src + count <= RAM_SIZE) {
-        memmove(memory + dest, memory + src, count);
+    // Argument 1 is always the target address in your fantasy console RAM
+    uint32_t dest_addr = (uint32_t)luaL_checkinteger(L, 1);
+    
+    // Check the type of the second argument dynamically
+    if (lua_type(L, 2) == LUA_TSTRING) {
+        // SCENARIO A: The user passed a raw Lua string!
+        size_t str_len;
+        const char *src_str = luaL_checklstring(L, 2, &str_len);
+        
+        // If argument 3 is provided, use it as count; otherwise default to full string length
+        size_t count = luaL_optinteger(L, 3, str_len);
+        
+        // --- Insert your custom engine memory safety bounds checks here ---
+        // Example: if (dest_addr + count > MAX_RAM) return luaL_error(L, "Out of bounds!");
+        
+        // Stream bytes straight from the Lua VM heap into your hardware memory array
+        memcpy(&memory[dest_addr], src_str, count);
+        
+    } else {
+        // SCENARIO B: The user passed a source memory address number
+        uint32_t src_addr = (uint32_t)luaL_checkinteger(L, 2);
+        size_t count      = (size_t)luaL_checkinteger(L, 3);
+        
+        // --- Insert your custom engine memory safety bounds checks here ---
+        
+        // Standard hardware-to-hardware RAM block copy
+        memcpy(&memory[dest_addr], &memory[src_addr], count);
     }
+    
     return 0;
 }
 

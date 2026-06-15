@@ -13,7 +13,7 @@ function flashrom.tick()
 	highscore = fget(0)
 	
 	-- simple button masher
-	if btnp(4) then score += 1 r += 12 end
+	if btnp(4) then score += 1 r += 12 sfx("assets/clik.wav", 0.8) end
 	
 	-- slowly shrink back down to the baseline every frame
     if r > 6 then

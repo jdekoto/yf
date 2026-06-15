@@ -47,6 +47,8 @@ typedef struct {
     uint8_t mouse_state[16];
     struct { int x, y; } mouse_pos;
     struct { int x, y; } mouse_delta;
+    SDL_GameController *pad1;
+    SDL_GameController *pad2;
     // time
     double step_time;
     double prev_time;
@@ -232,8 +234,32 @@ static void kit__wndproc(kit_Context *ctx, SDL_Event *e) {
         ctx->key_state[(uint8_t) e->key.keysym.scancode] &= ~KIT_INPUT_DOWN;
         ctx->key_state[(uint8_t) e->key.keysym.scancode] |= KIT_INPUT_RELEASED;
         break;
-
-    /*
+        
+    case SDL_CONTROLLERDEVICEADDED:
+        int device_index = e->cdevice.which;
+        if (!ctx->pad1) {
+            ctx->pad1 = SDL_GameControllerOpen(device_index);
+            printf("[ENGINE] P1 Connected: %s\n", SDL_GameControllerName(ctx->pad1));
+        } else if (!ctx->pad2) {
+            ctx->pad2 = SDL_GameControllerOpen(device_index);
+            printf("[ENGINE] P2 Connected: %s\n", SDL_GameControllerName(ctx->pad2));
+        }
+        break;
+        
+    case SDL_CONTROLLERDEVICEREMOVED:
+        SDL_JoystickID instance_id = e->cdevice.which;
+        if (ctx->pad1 && SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(ctx->pad1)) == instance_id) {
+            SDL_GameControllerClose(ctx->pad1);
+            ctx->pad1 = NULL;
+            printf("[ENGINE] Player 1 Disconnected\n");
+        }
+        else if (ctx->pad2 && SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(ctx->pad2)) == instance_id) {
+            SDL_GameControllerClose(ctx->pad2);
+            ctx->pad2 = NULL;
+            printf("[ENGINE] Player 2 Disconnected\n");
+        }
+        break;
+        
     case SDL_TEXTINPUT:
         for (int i,j = 0; i < kit_lengthof(ctx->char_buf); i++) {
             if (ctx->char_buf[i]) { continue; }
@@ -242,7 +268,6 @@ static void kit__wndproc(kit_Context *ctx, SDL_Event *e) {
             j++;
         }
         break;
-    */
     case SDL_MOUSEBUTTONDOWN:
     case SDL_MOUSEBUTTONUP:
         if (e->button.state == SDL_PRESSED) {

@@ -47,26 +47,79 @@ void fb_expand(uint16_t *dst) {
 }
 
 void map_inputs(kit_Context *ctx) {
-    // 1. Shift BOTH current bytes (40, 41) into the previous slots (42, 43)
-    poke(0x06042, peek(0x06040));
-    poke(0x06043, peek(0x06041));
-
-    // 2. Use a 16-bit integer so Bit 8 (Enter) doesn't get chopped off!
-    uint16_t mask = 0;
+    // Refresh controller connection states
     
-    if (kit_key_down(ctx, SDL_SCANCODE_LEFT))    mask |= (1 << 0);
-    if (kit_key_down(ctx, SDL_SCANCODE_RIGHT))   mask |= (1 << 1);
-    if (kit_key_down(ctx, SDL_SCANCODE_UP))      mask |= (1 << 2);
-    if (kit_key_down(ctx, SDL_SCANCODE_DOWN))    mask |= (1 << 3);
-    if (kit_key_down(ctx, SDL_SCANCODE_A))       mask |= (1 << 4); // Button A
-    if (kit_key_down(ctx, SDL_SCANCODE_S))       mask |= (1 << 5); // Button B
-    if (kit_key_down(ctx, SDL_SCANCODE_Z))       mask |= (1 << 6); // Button C
-    if (kit_key_down(ctx, SDL_SCANCODE_X))       mask |= (1 << 7); // Button D
-    if (kit_key_down(ctx, SDL_SCANCODE_RETURN))  mask |= (1 << 8); // Enter / Start
+    poke(0x06044, peek(0x06040));
+    poke(0x06045, peek(0x06041));
+    poke(0x06046, peek(0x06042));
+    poke(0x06047, peek(0x06043));
 
-    // 3. Poke the 16-bit mask across our two back-to-back registers
-    poke(0x06040, (uint8_t)(mask & 0xFF));        // Lower byte (bits 0-7)
-    poke(0x06041, (uint8_t)((mask >> 8) & 0xFF)); // Upper byte (bits 8-15)
+    uint32_t final_mask = 0;
+
+    // --- PLAYER 1 SUB-MASK MAPPING (Bits 0-8) ---
+    uint16_t p1_mask = 0;
+    if (kit_key_down(ctx, SDL_SCANCODE_LEFT))    p1_mask |= (1 << 0);
+    if (kit_key_down(ctx, SDL_SCANCODE_RIGHT))   p1_mask |= (1 << 1);
+    if (kit_key_down(ctx, SDL_SCANCODE_UP))      p1_mask |= (1 << 2);
+    if (kit_key_down(ctx, SDL_SCANCODE_DOWN))    p1_mask |= (1 << 3);
+    if (kit_key_down(ctx, SDL_SCANCODE_A))       p1_mask |= (1 << 4); 
+    if (kit_key_down(ctx, SDL_SCANCODE_S))       p1_mask |= (1 << 5); 
+    if (kit_key_down(ctx, SDL_SCANCODE_Z))       p1_mask |= (1 << 6); 
+    if (kit_key_down(ctx, SDL_SCANCODE_X))       p1_mask |= (1 << 7); 
+    if (kit_key_down(ctx, SDL_SCANCODE_RETURN))  p1_mask |= (1 << 8);
+
+    if (ctx->pad1) {
+        if (SDL_GameControllerGetButton(ctx->pad1, SDL_CONTROLLER_BUTTON_DPAD_LEFT))   p1_mask |= (1 << 0);
+        if (SDL_GameControllerGetButton(ctx->pad1, SDL_CONTROLLER_BUTTON_DPAD_RIGHT))  p1_mask |= (1 << 1);
+        if (SDL_GameControllerGetButton(ctx->pad1, SDL_CONTROLLER_BUTTON_DPAD_UP))     p1_mask |= (1 << 2);
+        if (SDL_GameControllerGetButton(ctx->pad1, SDL_CONTROLLER_BUTTON_DPAD_DOWN))   p1_mask |= (1 << 3);
+        if (SDL_GameControllerGetButton(ctx->pad1, SDL_CONTROLLER_BUTTON_A))           p1_mask |= (1 << 4);
+        if (SDL_GameControllerGetButton(ctx->pad1, SDL_CONTROLLER_BUTTON_B))           p1_mask |= (1 << 5);
+        if (SDL_GameControllerGetButton(ctx->pad1, SDL_CONTROLLER_BUTTON_X))           p1_mask |= (1 << 6);
+        if (SDL_GameControllerGetButton(ctx->pad1, SDL_CONTROLLER_BUTTON_Y))           p1_mask |= (1 << 7);
+        if (SDL_GameControllerGetButton(ctx->pad1, SDL_CONTROLLER_BUTTON_START))       p1_mask |= (1 << 8);
+
+        // Optional: Left Analog D-Pad deadzone fallback overrides
+        int16_t ax = SDL_GameControllerGetAxis(ctx->pad1, SDL_CONTROLLER_AXIS_LEFTX);
+        int16_t ay = SDL_GameControllerGetAxis(ctx->pad1, SDL_CONTROLLER_AXIS_LEFTY);
+        if (ax < -16000) p1_mask |= (1 << 0);
+        if (ax >  16000) p1_mask |= (1 << 1);
+        if (ay < -16000) p1_mask |= (1 << 2);
+        if (ay >  16000) p1_mask |= (1 << 3);
+    }
+    final_mask |= p1_mask;
+
+    // --- PLAYER 2 SUB-MASK MAPPING (Bits 0-8 local, then shifted up) ---
+    uint16_t p2_mask = 0;
+    // as of right now, you will need two controllers to do two player, needa figure out kbd mappings
+    
+    if (ctx->pad2) {
+        if (SDL_GameControllerGetButton(ctx->pad2, SDL_CONTROLLER_BUTTON_DPAD_LEFT))   p2_mask |= (1 << 0);
+        if (SDL_GameControllerGetButton(ctx->pad2, SDL_CONTROLLER_BUTTON_DPAD_RIGHT))  p2_mask |= (1 << 1);
+        if (SDL_GameControllerGetButton(ctx->pad2, SDL_CONTROLLER_BUTTON_DPAD_UP))     p2_mask |= (1 << 2);
+        if (SDL_GameControllerGetButton(ctx->pad2, SDL_CONTROLLER_BUTTON_DPAD_DOWN))   p2_mask |= (1 << 3);
+        if (SDL_GameControllerGetButton(ctx->pad2, SDL_CONTROLLER_BUTTON_A))           p2_mask |= (1 << 4);
+        if (SDL_GameControllerGetButton(ctx->pad2, SDL_CONTROLLER_BUTTON_B))           p2_mask |= (1 << 5);
+        if (SDL_GameControllerGetButton(ctx->pad2, SDL_CONTROLLER_BUTTON_X))           p2_mask |= (1 << 6);
+        if (SDL_GameControllerGetButton(ctx->pad2, SDL_CONTROLLER_BUTTON_Y))           p2_mask |= (1 << 7);
+        if (SDL_GameControllerGetButton(ctx->pad2, SDL_CONTROLLER_BUTTON_START))       p2_mask |= (1 << 8);
+
+        int16_t ax = SDL_GameControllerGetAxis(ctx->pad2, SDL_CONTROLLER_AXIS_LEFTX);
+        int16_t ay = SDL_GameControllerGetAxis(ctx->pad2, SDL_CONTROLLER_AXIS_LEFTY);
+        if (ax < -16000) p2_mask |= (1 << 0);
+        if (ax >  16000) p2_mask |= (1 << 1);
+        if (ay < -16000) p2_mask |= (1 << 2);
+        if (ay >  16000) p2_mask |= (1 << 3);
+    }
+    
+    // Shift Player 2 inputs up precisely past Player 1's Start key slot
+    final_mask |= ((uint32_t)p2_mask << 9);
+
+    // 3. Poke the 32-bit aggregated mask cleanly across the 4 sequential bytes
+    poke(0x06040, (uint8_t)(final_mask & 0xFF));
+    poke(0x06041, (uint8_t)((final_mask >> 8) & 0xFF));
+    poke(0x06042, (uint8_t)((final_mask >> 16) & 0xFF));
+    poke(0x06043, (uint8_t)((final_mask >> 24) & 0xFF));
 }
 
 // loads everything needed into ram.
@@ -300,8 +353,16 @@ int main(int argc, char *argv[]) {
     }
     if (is_yfc) {
         char cleanup_cmd[256];
+        #ifdef _WIN32
+    // Grab the standard user temp directory (e.g., C:\Users\Name\AppData\Local\Temp)
+          const char *win_tmp = getenv("TEMP");
+          if (!win_tmp) win_tmp = getenv("TMP");
+          if (!win_tmp) win_tmp = "."; // Hard fallback to local folder if env vars are missing       
+          snprintf(cleanup_cmd, sizeof(cleanup_cmd), "rmdir /s /q \"%s\\yf_sandbox_%d\"", win_tmp, getpid());
+        #else
         // Targets the exact process ID used during the boot process
-        snprintf(cleanup_cmd, sizeof(cleanup_cmd), "rm -rf /tmp/yf_sandbox_%d", getpid());
+          snprintf(cleanup_cmd, sizeof(cleanup_cmd), "rm -rf /tmp/yf_sandbox_%d", getpid());
+        #endif
         system(cleanup_cmd);
     }
     vm_shutdown(&vm);

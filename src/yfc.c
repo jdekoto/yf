@@ -368,7 +368,6 @@ int yfc_boot(VM *vm, const char *cart_path, long offset) {
                         fwrite(file_buf, 1, write_len, wf);
                     }
                     fclose(wf);
-                    printf("  [BOOT] Extracted: %s (%ld bytes)\n", h.name, write_len);
                 }
                 free(file_buf);
             }
@@ -386,8 +385,6 @@ int yfc_boot(VM *vm, const char *cart_path, long offset) {
         }
     }
     mtar_close(&tar);
-
-    printf("[MICROTAR] Pre-offset sandbox initialized perfectly. Booting...\n");
     vm_load(vm, "boot.lua");
     return 0;
 }

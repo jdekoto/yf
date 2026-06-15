@@ -6,7 +6,7 @@
 
 #define RAM_SIZE   (512 * 1024)
 
-#define ADDR_FB     0x00000u   /* 128×96 = 12,288 bytes  */
+#define ADDR_FB     0x00000u   /* 128×96 =  24,576 bytes */
 #define ADDR_INPUT  0x06040u   /* input state            */
 #define ADDR_AUDIO  0x06050u   /* audio registers        */
 #define ADDR_FONT   0x06200u   /* system font            */

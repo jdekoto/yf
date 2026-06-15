@@ -11,7 +11,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <time.h>
-#include <SDL2/SDL.h
+#include <SDL2/SDL.h>
 #include <lua.h>
 #include <lauxlib.h>
 
@@ -561,7 +561,14 @@ static int l_text(lua_State *L) {
 /* btn(n) → bool */
 static int l_btn(lua_State *L) {
     int n = (int)luaL_checknumber(L, 1);
-    uint16_t cur = (uint16_t)(peek(ADDR_INPUT) | (peek(ADDR_INPUT + 1) << 8));
+    if (n < 0 || n > 31) { lua_pushboolean(L, false); return 1; }
+
+    // Collate all 4 bytes into a single 32-bit evaluation integer
+    uint32_t cur = peek(ADDR_INPUT) | 
+                  (peek(ADDR_INPUT + 1) << 8) | 
+                  (peek(ADDR_INPUT + 2) << 16) | 
+                  (peek(ADDR_INPUT + 3) << 24);
+
     lua_pushboolean(L, (cur >> n) & 1);
     return 1;
 }
@@ -569,8 +576,19 @@ static int l_btn(lua_State *L) {
 /* btnp(n) → bool */
 static int l_btnp(lua_State *L) {
     int n = (int)luaL_checknumber(L, 1);
-    uint16_t cur  = (uint16_t)(peek(ADDR_INPUT)     | (peek(ADDR_INPUT + 1) << 8));
-    uint16_t prev = (uint16_t)(peek(ADDR_INPUT + 2)  | (peek(ADDR_INPUT + 3) << 8));
+    if (n < 0 || n > 31) { lua_pushboolean(L, false); return 1; }
+
+    uint32_t cur = peek(ADDR_INPUT) | 
+                  (peek(ADDR_INPUT + 1) << 8) | 
+                  (peek(ADDR_INPUT + 2) << 16) | 
+                  (peek(ADDR_INPUT + 3) << 24);
+
+    // Read previous frame history from the upgraded offsets (bytes +4 to +7)
+    uint32_t prev = peek(ADDR_INPUT + 4) | 
+                   (peek(ADDR_INPUT + 5) << 8) | 
+                   (peek(ADDR_INPUT + 6) << 16) | 
+                   (peek(ADDR_INPUT + 7) << 24);
+
     lua_pushboolean(L, ((cur >> n) & 1) && !((prev >> n) & 1));
     return 1;
 }
