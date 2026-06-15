@@ -8,7 +8,9 @@
 #include <errno.h>
 
 #include "audio.h"
-#include "micromod.h" // Added micromod header
+#include "micromod.h"
+
+#define GATE_RAMP_SAMPLES 64
 
 // Unified internal sample position counters for all 4 channels
 static uint32_t pcm_pos[4] = {0, 0, 0, 0};
@@ -99,6 +101,15 @@ void spu_callback(void *userdata, uint8_t *stream, int len) {
                 uint32_t src_len = ((uint32_t)peek(CH_LEN_0(ch)) << 16) | 
                                     ((uint32_t)peek(CH_LEN_1(ch)) << 8)  | 
                                      (uint32_t)peek(CH_LEN_2(ch));
+                                     
+                // SOFTWARE GATE: If reaching the end of a non-looping sample, taper volume cleanly
+                if (peek(CH_LOOP(ch)) == 0 && pcm_pos[ch] < src_len) {
+                    uint32_t remaining = src_len - pcm_pos[ch];
+                    // Defensive guard check ensures extremely short sounds (<64 samples) don't get crushed
+                    if (remaining <= GATE_RAMP_SAMPLES && src_len > GATE_RAMP_SAMPLES) {
+                        volume *= ((float)remaining / (float)GATE_RAMP_SAMPLES);
+                    }
+                }
 
                 // Advance cursor index pointer
                 pcm_pos[ch]++;

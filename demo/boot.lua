@@ -14,14 +14,16 @@ cState = 1
 
 function _tick()
 
-	if btnp(BTN_LEFT) then
+	if btnp(0) then
 		cState = cState - 1
         	if cState < 1 then cState = #states end
         	cls(0)
-	elseif btnp(BTN_RIGHT) then
+        	sfx("assets/scn.wav", 0.5)
+	elseif btnp(1) then
 		cState = cState + 1
 		if cState > #states then cState = 1 end
 		cls(0)
+		sfx("assets/scn.wav", 0.5)
 	end
 	
 	local mode = states[cState]
