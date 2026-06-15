@@ -1,7 +1,7 @@
 # yf
 A creative sandbox with 512 kb of ram. 
 
-<img width="480" height="318" alt="output" src="https://github.com/user-attachments/assets/80ce0237-3b1a-4a45-ad29-e4630aaf2c10" />
+<img width="480" height="316" alt="debut" src="https://github.com/user-attachments/assets/47efea89-0c85-4521-ad08-10f246a7c44e" />
 
 ### DESC
 This 16-bit fantasy console have all you need to make nostalgic games or works of art. It's modeled after the framework format, where it gains heavy inspiration from LOVE2D and cel7. The software includes:
