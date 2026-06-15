@@ -6,12 +6,7 @@ CFLAGS = -std=c11 -Wall -Wextra -O2 \
          
 LIBS = -lSDL2 -lm
 
-WIN_FLAGS = -Ivendor/sdl2/include
-
-WIN_LDF =-Lvendor/sdl2/lib -lmingw32 -lSDL2main -lSDL2 -mwindows \
-	-luser32 -lgdi32 -lwinmm -limm32 -lole32 \
-	-loleaut32 -lversion -luuid -lsetupapi -lshell32 \
-	-static-libgcc -static \
+WIN_LDF = -lmingw32 -lSDL2main -lSDL2 -mwindows \
 	
 TARGET = yf
 
@@ -30,6 +25,6 @@ $(TARGET): $(SRC)
 	$(CC) $(CFLAGS) $(SRC) $(LIBS) -o $(TARGET)
 	
 windows: $(SRC)
-	$(WIN_CC) $(CFLAGS) $(WIN_FLAGS) $(SRC) $(WIN_LDF) -o $(TARGET)
+	$(WIN_CC) $(CFLAGS) $(SRC) $(WIN_LDF) -o $(TARGET)
 	
 
