@@ -23,6 +23,7 @@ function sprite.tick()
 
     -- 1. Input Handler (Only trigger jump if player is sitting on the floor)
     if py >= GROUND_Y and btn(4) then
+    		sfx("assets/jmp.wav", 0.6)
         dy = JUMP_FORCE
     end
 
