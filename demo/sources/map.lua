@@ -17,5 +17,6 @@ function maptest.tick()
 	-- This keeps reading from the start of your map data (0,0),
 	-- but pushes the rendering destination 16 pixels right and 8 pixels down!
 	map(0, -2, 0, 0, 16, 12)
-	text("press A/S to move camera", 4 + cx, 87 + cy, 13)
+	text("128kb chunk map", 4 + cx, 4, 13)
+	text("press A/S to move camera", 4 + cx, 87, 13)
 end
