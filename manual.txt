@@ -3,7 +3,7 @@ yellowfeather manual.
 
 introduction:
 yo.
-Yellowfeather, or yf (pronounced yif) is a fantasy console taking massive inspiration from the 16-bit era. 
+yellowfeather, or yf (pronounced yif) is a fantasy console taking massive inspiration from the 16-bit era. 
 in this manual, i hope to teach you guys the ins and outs of this fantasy console; which includes the API, cassette formatting, appending, etc. 
 
 specifications:
@@ -15,7 +15,9 @@ specifications:
   - 16 MB cassette slot
   - Unlimited Flashrom for saving
 
-here are the button layouts:
+(NOTE: i'm not going to go over the Lua syntax for now, so please take a look at the manual: https://www.lua.org/manual/5.4/manual.html)
+
+Mappings:
     ╭────╮                    ╭────╮    
     ╰─06─╯────────────────────╰─07─╯    
     │╭────────────────────────────╮│    
@@ -34,5 +36,7 @@ here are the button layouts:
     ╰──────────────────────────────╯ 
     	  (for p2, index starts at 9)
     	  
-
+i haven't implemented too many customizations of the controller mappings so this will be a relatively short sections. 
+the bumpers 6 and 7 are mapped to the face buttons on standard controllers, so 4 is A, 5 is B, 6 is X, and 7 is Y.
+in order to player local multiplayer, you would need two controllers at the same time. im still tryna figure out a better way but this is how it is right now.
     	  
