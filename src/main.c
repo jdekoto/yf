@@ -11,6 +11,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+
+#ifndef O_BINARY
+#define O_BINARY 0   /* linux/mac don't need it, harmless to define */
+#endif
+
 #ifdef _WIN32
     #include <direct.h>
     #include <process.h> // Needed for getpid() on Windows
@@ -168,7 +173,7 @@ static bool has_extension(const char *filename, const char *ext) {
 static void title_handler(const char *path, bool is_cart, long offset) {
     if (is_cart) {
         // --- CARTRIDGE BINARY EXTRACTOR ---
-        int fd = open(path, O_RDONLY);
+        int fd = open(path, O_RDONLY | O_BINARY);
         if (fd >= 0) {
             lseek(fd, offset, SEEK_SET);
             char magic[4];
@@ -243,7 +248,7 @@ static long find_sentinel(int fd, long file_size) {
 }
 
 static long find_appended(const char *exe_path) {
-    int fd = open(exe_path, O_RDONLY);
+    int fd = open(exe_path, O_RDONLY | O_BINARY);
     if (fd < 0) return -1;
 
     long file_size = lseek(fd, 0, SEEK_END);
@@ -274,6 +279,46 @@ static long find_appended(const char *exe_path) {
     return found_offset;
 }
 
+#ifdef __APPLE__
+#include <dirent.h>
+
+static const char *find_resources_cart(const char *exe_path) {
+    static char cart_path[1024];
+    char dir[1024];
+    strncpy(dir, exe_path, sizeof(dir));
+
+    /* strip /yf → Contents/MacOS */
+    char *sl = strrchr(dir, '/');
+    if (!sl) return NULL;
+    *sl = '\0';
+
+    /* strip /MacOS → Contents */
+    sl = strrchr(dir, '/');
+    if (!sl) return NULL;
+    *sl = '\0';
+
+    /* build Resources path */
+    char res[1024];
+    snprintf(res, sizeof(res), "%s/Resources", dir);
+
+    DIR *d = opendir(res);
+    if (!d) return NULL;
+
+    struct dirent *ent;
+    while ((ent = readdir(d)) != NULL) {
+        size_t len = strlen(ent->d_name);
+        if (len > 4 && strcmp(ent->d_name + len - 4, ".yfc") == 0) {
+            snprintf(cart_path, sizeof(cart_path),
+                     "%s/%s", res, ent->d_name);
+            closedir(d);
+            return cart_path;
+        }
+    }
+    closedir(d);
+    return NULL;
+}
+#endif
+
 int main(int argc, char *argv[]) {
     
     // initiate the system before argument handling
@@ -294,6 +339,19 @@ int main(int argc, char *argv[]) {
         
         goto launch_window;
     }
+    
+    /* mac resources bundle check */
+    #ifdef __APPLE__
+    {
+        const char *res_cart = find_resources_cart(argv[0]);
+        if (res_cart) {
+            is_yfc = true;
+            title_handler(res_cart, true, 0);
+            yfc_boot(&vm, res_cart, 0);
+            goto launch_window;
+        }
+    }
+    #endif
 
     if (argc < 2) {
         vm_bios(&vm);

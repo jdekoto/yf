@@ -183,30 +183,6 @@ void vm_reload(VM *vm, const char *path) {
     }
 }
 
-// so you dont have to woory about it + plus wont bloat your cassette
-void vm_runtime(VM *vm) {
-    if (luaL_dostring(vm->L, EYECANDY_SOURCE) != LUA_OK) {
-        fprintf(stderr, "Failed to inject embedded graphics runtime: %s\n", lua_tostring(vm->L, -1));
-        lua_pop(vm->L, 1);
-    }
-    if (luaL_dostring(vm->L, APU_SOURCE) != LUA_OK) {
-        fprintf(stderr, "Failed to inject embedded audio runtime: %s\n", lua_tostring(vm->L, -1));
-        lua_pop(vm->L, 1);
-    }
-    if (luaL_dostring(vm->L, JOYPADS_SOURCE) != LUA_OK) {
-        fprintf(stderr, "Failed to inject embedded input runtime: %s\n", lua_tostring(vm->L, -1));
-        lua_pop(vm->L, 1);
-    }
-    if (luaL_dostring(vm->L, BATUTTA_SOURCE) != LUA_OK) {
-        fprintf(stderr, "Failed to inject embedded tilemap runtime: %s\n", lua_tostring(vm->L, -1));
-        lua_pop(vm->L, 1);
-    }
-    if (luaL_dostring(vm->L, SHORTHAND_SOURCE) != LUA_OK) {
-        fprintf(stderr, "Failed to inject embedded shorthand runtime: %s\n", lua_tostring(vm->L, -1));
-        lua_pop(vm->L, 1);
-    }
-}
-
 static int  g_ops       = 0;
 static bool g_cpu_limit = false;
 
