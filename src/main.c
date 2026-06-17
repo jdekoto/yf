@@ -329,17 +329,6 @@ int main(int argc, char *argv[]) {
     // first are we fused?
     long fused_offset = find_appended(argv[0]);
     
-    if (fused_offset >= 0) {
-        printf("[ENGINE] Fused game stream payload identified at byte offset: %ld\n", fused_offset);
-        is_yfc = true;
-        
-        // We pass the engine's own running path as the cartridge target argument!
-        title_handler(argv[0], true, fused_offset);
-        yfc_boot(&vm, argv[0], fused_offset);
-        
-        goto launch_window;
-    }
-    
     /* mac resources bundle check */
     #ifdef __APPLE__
     {
@@ -351,6 +340,18 @@ int main(int argc, char *argv[]) {
             goto launch_window;
         }
     }
+    
+    #else
+      if (fused_offset >= 0) {
+          printf("[ENGINE] Fused game stream payload identified at byte offset: %ld\n", fused_offset);
+          is_yfc = true;
+          
+          // We pass the engine's own running path as the cartridge target argument!
+          title_handler(argv[0], true, fused_offset);
+          yfc_boot(&vm, argv[0], fused_offset);
+          
+          goto launch_window;
+      }
     #endif
 
     if (argc < 2) {
