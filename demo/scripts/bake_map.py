@@ -3,8 +3,8 @@ import json
 import sys
 
 # Virtual console hardware specifications
-MAP_WIDTH = 256
-MAP_HEIGHT = 192
+MAP_WIDTH = 512
+MAP_HEIGHT = 256
 OUTPUT_SIZE = MAP_WIDTH * MAP_HEIGHT
 
 

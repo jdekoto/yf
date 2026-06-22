@@ -1,5 +1,6 @@
 
 CC = clang
+WINCC = x86_64-w64-mingw32-gcc
 CFLAGS = -std=c11 -Wall -Wextra -O2 \
          -Isrc -Ivendor/lua -Ivendor/micromod -Ivendor/microtar \
          
@@ -12,7 +13,7 @@ OSX_LDF = -I./build/osx/YellowFeather.app/Contents/Frameworks/SDL2.framework/Hea
    	 -O2 -Wall \
    	 -Wl,-rpath,@executable_path/../Frameworks \
    	 -Wl,-rpath,/var/home/dytu/.osxcross/lib \
-   	 -arch x86_64 -arch arm64 \ # universal binary
+   	 -arch x86_64 -arch arm64 \
 	
 TARGET = yf
 
@@ -28,10 +29,10 @@ all: $(TARGET)
 
 
 $(TARGET): $(SRC)
-	$(CC) $(CFLAGS) $(SRC) $(LIBS) -o build/linux/$(TARGET)
+	$(CC) $(CFLAGS) -DLUA_USE_POSIX $(SRC) $(LIBS) -o build/linux/$(TARGET)
 	
 windows: $(SRC)
-	$(CC) -target x86_64-w64-windows-gnu $(CFLAGS) $(SRC) $(WIN_LDF) -o build/windows/$(TARGET)
+	$(WINCC) $(CFLAGS) $(SRC) $(WIN_LDF) -o build/windows/$(TARGET)
 	
 osx: $(SRC)
 	xcrun $(CC) $(SRC) $(CFLAGS) $(OSX_LDF) -o build/osx/YellowFeather.app/Contents/MacOS/$(TARGET)

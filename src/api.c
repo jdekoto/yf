@@ -29,8 +29,8 @@
 #define SPR_PER_ROW     (SPR_BANK_DIM / SPR_W)   /* 8 sprites per row */
 
 /* ── tilemap constants ───────────────────────────────────────── */
-#define MAP_WIDTH      256
-#define MAP_HEIGHT     192
+#define MAP_WIDTH      512
+#define MAP_HEIGHT     256
 
 /* ── active sprite bank (toggled by sbank()) ─────────────────── */
 static uint32_t g_sprbank = ADDR_SPRB0;

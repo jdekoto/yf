@@ -224,7 +224,7 @@ static void title_handler(const char *path, bool is_cart, long offset) {
         }
     }
 }
-
+/*
 static long find_sentinel(int fd, long file_size) {
     const char sentinel[8] = {
         0xDE, 0xAD, 0xBE, 0xEF,
@@ -240,11 +240,37 @@ static long find_sentinel(int fd, long file_size) {
     while ((n = read(fd, buf, sizeof(buf))) > 0) {
         for (int i = 0; i < n - 8; i++) {
             if (memcmp(buf + i, sentinel, 8) == 0)
-                found = pos + i + 8;  /* byte AFTER sentinel = exe end */
+                found = pos + i + 8;  // byte AFTER sentinel = exe end 
         }
         pos += n;
     }
-    return found;   /* -1 if not found */
+    return found;   // -1 if not found
+}
+*/
+
+static long find_sentinel(int fd, long file_size) {
+    const char sentinel[8] = {
+        0xDE, 0xAD, 0xBE, 0xEF,
+        0xCA, 0xFE, 0xBA, 0xBE
+    };
+
+    // Start scanning from the end of the file minus the sentinel size
+    long current_pos = file_size - 8;
+    char buf[8];
+
+    // Scan backward byte-by-byte
+    while (current_pos >= 0) {
+        lseek(fd, current_pos, SEEK_SET);
+        if (read(fd, buf, 8) == 8) {
+            if (memcmp(buf, sentinel, 8) == 0) {
+                /* Found it! Return the byte immediately AFTER the sentinel */
+                return current_pos + 8; 
+            }
+        }
+        current_pos--; // Move one byte backward
+    }
+
+    return -1;   /* No sentinel found */
 }
 
 static long find_appended(const char *exe_path) {
@@ -429,7 +455,12 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 
+/* to check for appended carts at the end of the executable (linux/windows)
+ though clang with a linux target handles this well and mac depends on the Resources folder for "fused" carts, 
+ clang with a windows target does not put this at the end of the executable, causing a false positive. 
+ thus the only way we can fix this is by using the MinGW GCC compiler or rewrite the fused checker entirely */
 const char end_of_executable[8] = {
     0xDE, 0xAD, 0xBE, 0xEF,
     0xCA, 0xFE, 0xBA, 0xBE
 };
+
