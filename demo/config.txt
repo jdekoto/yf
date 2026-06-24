@@ -2,4 +2,6 @@ title = yellowfeather demo
 author = dytu
 version = 0.0.1
 
-
+# yes we support multi-lines, but you cannot include entire folders
+# anything in those folders will have to be typed manually
+inclusions = readme.txt

@@ -104,6 +104,59 @@ static inline uint16_t _pget(int x, int y) {
 }
 
 /* ═══════════════════════════════════════════════════════════════
+   PALETTE & COLOR UTILITIES
+   ═══════════════════════════════════════════════════════════════ */
+
+/* rgb(r, g, b) — packs raw channels into single 16-bit RGB565 integer */
+static int l_rgb(lua_State *L) {
+    uint8_t r = (uint8_t)luaL_checknumber(L, 1);
+    uint8_t g = (uint8_t)luaL_checknumber(L, 2);
+    uint8_t b = (uint8_t)luaL_checknumber(L, 3);
+    lua_pushinteger(L, _make_rgb565(r, g, b));
+    return 1;
+}
+
+/* pal([idx, color16]) or pal(idx, r, g, b) — updates or resets color lookup tables */
+static int l_pal(lua_State *L) {
+    // If no arguments, reset lookup to baseline specifications
+    if (lua_gettop(L) == 0) {
+        g_palette[0]  = _make_rgb565(23, 25, 27);    // asphalt
+        g_palette[1]  = _make_rgb565(40, 35, 123);   // ocean
+        g_palette[2]  = _make_rgb565(50, 89, 226);   // afternoon
+        g_palette[3]  = _make_rgb565(51, 165, 255);  // neon
+        g_palette[4]  = _make_rgb565(10, 75, 77);    // rainforest
+        g_palette[5]  = _make_rgb565(114, 203, 37);  // bamboo
+        g_palette[6]  = _make_rgb565(255, 196, 56);  // solar
+        g_palette[7]  = _make_rgb565(240, 108, 0);   // tangerine
+        g_palette[8]  = _make_rgb565(209, 40, 65);   // strawberry
+        g_palette[9]  = _make_rgb565(87, 20, 46);    // cherry
+        g_palette[10] = _make_rgb565(151, 63, 63);   // soil
+        g_palette[11] = _make_rgb565(241, 194, 132); // caucasian
+        g_palette[12] = _make_rgb565(229, 93, 172);  // bubblegum
+        g_palette[13] = _make_rgb565(241, 240, 238); // white
+        g_palette[14] = _make_rgb565(150, 165, 171); // cobblestone
+        g_palette[15] = _make_rgb565(88, 108, 121);  // clay
+        return 0;
+    }
+
+    int idx = (int)luaL_checknumber(L, 1);
+    if (idx < 0 || idx >= 16) return 0;
+
+    if (lua_gettop(L) == 2) {
+        // Direct value assignment
+        g_palette[idx] = (uint16_t)luaL_checknumber(L, 2);
+    } else if (lua_gettop(L) >= 4) {
+        // Discrete component assignment
+        uint8_t r = (uint8_t)luaL_checknumber(L, 2);
+        uint8_t g = (uint8_t)luaL_checknumber(L, 3);
+        uint8_t b = (uint8_t)luaL_checknumber(L, 4);
+        g_palette[idx] = _make_rgb565(r, g, b);
+    }
+    return 0;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
    GRAPHICS API
    ═══════════════════════════════════════════════════════════════ */
 
@@ -307,13 +360,11 @@ static int l_sbank(lua_State *L) {
 
 // Track spreadsheet dimensions directly inside the native runtime layer
 static uint32_t bank_addresses[] = { 0x06500, 0x08500 };
-static int bank_widths[]         = { 64, 64 };
+static int bank_widths[]         = { 128, 128 };
 static int bank_heights[]        = { 64, 64 };
 
-/* spr(id, x, y, [w], [h], [flip_x], [flip_y])
-renders sprites (yay!) width and height are in tiles,
-not pixels. */
-int l_spr(lua_State *L) {
+/* sprite(id, x, y, [w], [h], [flip_x], [flip_y]) */
+int l_sprite(lua_State *L) {
     int id       = (int)luaL_checknumber(L, 1);
     int screen_x = (int)luaL_checknumber(L, 2);
     int screen_y = (int)luaL_checknumber(L, 3);
@@ -322,7 +373,7 @@ int l_spr(lua_State *L) {
     bool flip_x  = lua_toboolean(L, 6);
     bool flip_y  = lua_toboolean(L, 7);
 
-    uint8_t current_bank = memory[0x06044u]; // ADDR_BANK_SWITCH
+    uint8_t current_bank = memory[0x06044u];
     if (current_bank > 1) current_bank = 0;
 
     uint32_t sheet_base = bank_addresses[current_bank];
@@ -342,12 +393,8 @@ int l_spr(lua_State *L) {
             int dest_x = screen_x + px;
             int dest_y = screen_y + py;
 
-            // Direct hardware hardware clipping check (128x96 screen bounds)
-            if (dest_x < 0 || dest_x >= 128 || dest_y < 0 || dest_y >= 96) {
-                continue;
-            }
+            if (dest_x < 0 || dest_x >= 128 || dest_y < 0 || dest_y >= 96) continue;
 
-            // Composite layout reflection mirror matrix
             int target_src_x = flip_x ? (total_w - 1 - px) : px;
             int target_src_y = flip_y ? (total_h - 1 - py) : py;
 
@@ -356,29 +403,30 @@ int l_spr(lua_State *L) {
 
             if (source_x < 0 || source_x >= sheet_width) continue;
 
-            // Extract 16-bit color elements
-            uint32_t src_addr = sheet_base + ((source_y * sheet_width + source_x) * 2);
-            uint8_t low = memory[src_addr];
-            uint8_t high = memory[src_addr + 1];
-            uint16_t color16 = low | (high << 8);
+            uint32_t src_addr = sheet_base + (source_y * sheet_width + source_x);
+            uint8_t color_index = memory[src_addr];
 
-            // Transparent color key
-            if (color16 != 0x0000) {
+            // 0 is transparent. Anything else gets shifted back by 1 for the hardware palette!
+            if (color_index != 0) {
+                uint16_t color16 = g_palette[color_index - 1];
+
                 uint32_t fb_addr = ADDR_FB + ((dest_y * 128 + dest_x) * 2);
-                memory[fb_addr]     = low;
-                memory[fb_addr + 1] = high;
+                memory[fb_addr]     = color16 & 0xFF;
+                memory[fb_addr + 1] = (color16 >> 8) & 0xFF;
             }
         }
     }
     return 0;
 }
 
-/* sprsht(filename, bank) - load a 64*64 into one of two sprite banks*/
+/* sprsht(filename, width, height, [bank]) - Load pure raw pixels using code-defined dimensions */
 int l_sprsht(lua_State *L) {
     const char* filename = luaL_checkstring(L, 1);
-    int bank_id = (int)luaL_optinteger(L, 2, 0);
+    int width            = (int)luaL_optinteger(L, 2, 128);
+    int height           = (int)luaL_optinteger(L, 3, 128);
+    int bank_id          = (int)luaL_optinteger(L, 4, 0);
 
-    if (bank_id < 0 || bank_id > 1) {
+    if (bank_id < 0 || bank_id > 1 || width > 128 || height > 64 || width <= 0 || height <= 0) {
         lua_pushboolean(L, false);
         return 1;
     }
@@ -389,72 +437,34 @@ int l_sprsht(lua_State *L) {
         return 1;
     }
 
-    uint8_t header[54];
-    if (fread(header, 1, 54, file) != 54 || header[0] != 'B' || header[1] != 'M') {
+    // Determine file size to verify dimensions match perfectly
+    fseek(file, 0, SEEK_END);
+    long file_size = ftell(file);
+    fseek(file, 0, SEEK_SET);
+
+    uint32_t total_pixels = width * height;
+    if (file_size != (long)total_pixels) {
+        // File size mismatch protection
         fclose(file);
         lua_pushboolean(L, false);
         return 1;
     }
 
-    uint32_t data_offset = *(uint32_t*)&header[10];
-    int32_t width        = *(int32_t*)&header[18];
-    int32_t height       = *(int32_t*)&header[22];
-    uint16_t bpp         = *(uint16_t*)&header[28];
-
-    if (bpp != 24) {
-        fclose(file);
-        lua_pushboolean(L, false);
-        return 1;
-    }
-
-    int abs_height = (height < 0) ? -height : height;
-    if (width > 64 || abs_height > 64) {
-        fclose(file);
-        lua_pushboolean(L, false);
-        return 1;
-    }
-
-    // Cache metrics natively so l_spr can grab them immediately
+    // Cache metrics natively so l_spr can grab them for stride calculations
     bank_widths[bank_id]  = width;
-    bank_heights[bank_id] = abs_height;
-
-    fseek(file, data_offset, SEEK_SET);
-    int row_size = ((24 * width + 31) / 32) * 4;
-    uint8_t *pixel_bytes = malloc(row_size * abs_height);
-    fread(pixel_bytes, 1, row_size * abs_height, file);
-    fclose(file);
+    bank_heights[bank_id] = height;
 
     uint32_t dest_address = bank_addresses[bank_id];
-    bool is_bottom_up = (height > 0);
 
-    for (int y = 0; y < abs_height; y++) {
-        int bmp_y = is_bottom_up ? (abs_height - 1 - y) : y;
-        int row_start = bmp_y * row_size;
+    // Blit pure raw stream directly into VRAM
+    size_t bytes_read = fread(&memory[dest_address], 1, total_pixels, file);
+    fclose(file);
 
-        for (int x = 0; x < width; x++) {
-            int pos = row_start + (x * 3);
-            uint8_t b = pixel_bytes[pos];
-            uint8_t g = pixel_bytes[pos + 1];
-            uint8_t r = pixel_bytes[pos + 2];
-
-            // Native hardware RGB565 packing math transformation
-            uint16_t r5 = (r * 31) / 255;
-            uint16_t g6 = (g * 63) / 255;
-            uint16_t b5 = (b * 31) / 255;
-            uint16_t color16 = (r5 << 11) | (g6 << 5) | b5;
-
-            uint32_t target_addr = dest_address + ((y * width + x) * 2);
-            memory[target_addr]     = color16 & 0xFF;
-            memory[target_addr + 1] = (color16 >> 8) & 0xFF;
-        }
-    }
-
-    free(pixel_bytes);
-    lua_pushboolean(L, true);
+    lua_pushboolean(L, (bytes_read == total_pixels));
     return 1;
 }
 
-/* ── custom font lookup map ─────────────────────────────────── */
+// custom font lookup map 
 static int g_ascii_to_font_index[256];
 static int g_font_map_initialized = 0;
 
@@ -637,7 +647,6 @@ static int l_mset(lua_State *L) {
     return 0;
 }
 
-/* map(start_tx, start_ty, screen_x, screen_y, [tiles_w], [tiles_h]) */
 static int l_map(lua_State *L) {
     int stx = (int)luaL_checknumber(L, 1);
     int sty = (int)luaL_checknumber(L, 2);
@@ -666,11 +675,18 @@ static int l_map(lua_State *L) {
 
             for (int row = 0; row < SPR_H; row++) {
                 for (int col = 0; col < SPR_W; col++) {
-                    uint32_t src = g_sprbank
-                                 + (uint32_t)((by + row) * SPR_BANK_DIM + (bx + col)) * 2;
-                    uint16_t px = peek2(src);
-                    if (px != 0x0000) {
-                        _pset(draw_x + col, draw_y + row, px);
+                    // INDEXED METHOD: 
+                    // 1. Remove the '* 2' offset scaling because pixels are now 1 byte each
+                    uint32_t src = g_sprbank + (uint32_t)((by + row) * SPR_BANK_DIM + (bx + col));
+                    
+                    // 2. Fetch a single byte color index from sprite memory
+                    uint8_t color_index = peek(src);
+
+                    // 3. Transparent color handling (Aseprite Slot 0)
+                    if (color_index != 0) {
+                        // 4. Shift back by 1 so Aseprite slots 1-16 translate 
+                        // perfectly to your native g_palette indices 0-15
+                        _pset(draw_x + col, draw_y + row, color_index - 1);
                     }
                 }
             }
@@ -680,122 +696,8 @@ static int l_map(lua_State *L) {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   PALETTE & COLOR UTILITIES
+   AUDIO PROCESSING API
    ═══════════════════════════════════════════════════════════════ */
-
-/* rgb(r, g, b) — packs raw channels into single 16-bit RGB565 integer */
-static int l_rgb(lua_State *L) {
-    uint8_t r = (uint8_t)luaL_checknumber(L, 1);
-    uint8_t g = (uint8_t)luaL_checknumber(L, 2);
-    uint8_t b = (uint8_t)luaL_checknumber(L, 3);
-    lua_pushinteger(L, _make_rgb565(r, g, b));
-    return 1;
-}
-
-/* pal([idx, color16]) or pal(idx, r, g, b) — updates or resets color lookup tables */
-static int l_pal(lua_State *L) {
-    // If no arguments, reset lookup to baseline specifications
-    if (lua_gettop(L) == 0) {
-        g_palette[0]  = _make_rgb565(23, 25, 27);    // asphalt
-        g_palette[1]  = _make_rgb565(40, 35, 123);   // ocean
-        g_palette[2]  = _make_rgb565(50, 89, 226);   // afternoon
-        g_palette[3]  = _make_rgb565(51, 165, 255);  // neon
-        g_palette[4]  = _make_rgb565(10, 75, 77);    // rainforest
-        g_palette[5]  = _make_rgb565(114, 203, 37);  // bamboo
-        g_palette[6]  = _make_rgb565(255, 196, 56);  // solar
-        g_palette[7]  = _make_rgb565(240, 108, 0);   // tangerine
-        g_palette[8]  = _make_rgb565(209, 40, 65);   // strawberry
-        g_palette[9]  = _make_rgb565(87, 20, 46);    // cherry
-        g_palette[10] = _make_rgb565(151, 63, 63);   // soil
-        g_palette[11] = _make_rgb565(241, 194, 132); // caucasian
-        g_palette[12] = _make_rgb565(229, 93, 172);  // bubblegum
-        g_palette[13] = _make_rgb565(241, 240, 238); // white
-        g_palette[14] = _make_rgb565(150, 165, 171); // cobblestone
-        g_palette[15] = _make_rgb565(88, 108, 121);  // clay
-        return 0;
-    }
-
-    int idx = (int)luaL_checknumber(L, 1);
-    if (idx < 0 || idx >= 16) return 0;
-
-    if (lua_gettop(L) == 2) {
-        // Direct value assignment
-        g_palette[idx] = (uint16_t)luaL_checknumber(L, 2);
-    } else if (lua_gettop(L) >= 4) {
-        // Discrete component assignment
-        uint8_t r = (uint8_t)luaL_checknumber(L, 2);
-        uint8_t g = (uint8_t)luaL_checknumber(L, 3);
-        uint8_t b = (uint8_t)luaL_checknumber(L, 4);
-        g_palette[idx] = _make_rgb565(r, g, b);
-    }
-    return 0;
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   SOUND PROCESSING API
-   ═══════════════════════════════════════════════════════════════ */
-
-/* sfx(filename, [volume], [channel]) - plays sfx sound from cassette
-volume - defaults to 1.0
-channel - defaults to 2, limited to 2 and 3
-*/
-int l_sfx(lua_State *L) {
-    const char *filename = luaL_checkstring(L, 1);
-    double vol_mult      = luaL_optnumber(L, 2, 1.0);
-    int channel          = luaL_optinteger(L, 3, 2);
-
-    int volume = (int)(vol_mult * 255.0);
-    if (volume > 255) volume = 255;
-    if (volume < 0)   volume = 0;
-
-    FILE *f = fopen(filename, "rb");
-    if (!f) {
-        lua_pushboolean(L, 0);
-        return 1;
-    }
-
-    fseek(f, 0, SEEK_END);
-    long file_size = ftell(f);
-    if (file_size < 44) {
-        fclose(f);
-        lua_pushboolean(L, 0);
-        return 1;
-    }
-
-    // Skip the standard 44-byte WAV header directly to raw PCM bytes
-    fseek(f, 44, SEEK_SET);
-    long data_size = file_size - 44;
-    if (data_size > 32768) data_size = 32768; // 32KB hardware limit
-
-    uint32_t audio_ram_dest = ADDR_SNDBUF + (channel * 0x8000);
-
-    // Read payload right into the high system memory space
-    fread(&memory[audio_ram_dest], 1, data_size, f);
-    fclose(f);
-
-    // Clear remaining buffer allocation space out to neutral center balance silence (128)
-    if (data_size < 32768) {
-        memset(&memory[audio_ram_dest + data_size], 128, 32768 - data_size);
-    }
-
-    // Pack standard big-endian register pairs matching your apu.lua shifts
-    memory[CH_VOLUME(channel)]  = volume;
-    memory[CH_ADDR_0(channel)]  = (audio_ram_dest >> 16) & 0xFF;
-    memory[CH_ADDR_1(channel)]  = (audio_ram_dest >> 8) & 0xFF;
-    memory[CH_ADDR_2(channel)]  = audio_ram_dest & 0xFF;
-    
-    memory[CH_LEN_0(channel)]   = (data_size >> 16) & 0xFF;
-    memory[CH_LEN_1(channel)]   = (data_size >> 8) & 0xFF;
-    memory[CH_LEN_2(channel)]   = data_size & 0xFF;
-    
-    memory[CH_LOOP(channel)]    = 0;
-    memory[CH_STATUS(channel)]  = 1;
-    memory[CH_TRIGGER(channel)] = 1;
-
-    lua_pushboolean(L, 1);
-    return 1;
-}
-
 // Private closure function for mus.play()
 static int l_closure_play(lua_State *L) {
     // Retrieve the secret upvalues bound to this specific function instance
@@ -827,7 +729,7 @@ static int l_closure_stop(lua_State *L) {
     return 0;
 }
 
-/* module(filename, volume) - loads module into hardware tracker */
+// module(filename, volume) - loads module into hardware tracker 
 int l_module(lua_State *L) {
     // 1. Grab inputs passed from the user script
     const char* filename = luaL_checkstring(L, 1);
@@ -858,6 +760,85 @@ int l_module(lua_State *L) {
     return 1; 
 }
 
+/* * sfx(slot, [volume], [channel], [pitch])
+ * Lua syntax examples: 
+ * sfx(5)             -- Plays slot 5 on an auto-allocated SFX channel
+ * sfx(12, 128, 2)    -- Plays slot 12 on channel 2 at half volume
+ */
+static int l_sfx(lua_State *L) {
+    int slot = luaL_checkinteger(L, 1);
+    if (slot < 0 || slot >= 64) {
+        return luaL_error(L, "Invalid sound slot index %d (Must be 0-63)", slot);
+    }
+
+    // Read optional volume (default: 255)
+    int volume = (lua_gettop(L) >= 2 && !lua_isnil(L, 2)) ? luaL_checkinteger(L, 2) : 255;
+  
+    // Default to automatic channel picking between CHAN_SFX_1 (2) and CHAN_SFX_2 (3)
+    // if the user doesn't pass an explicit channel index argument
+    int ch = CHAN_SFX_1; 
+    if (lua_gettop(L) >= 3 && !lua_isnil(L, 3)) {
+        ch = luaL_checkinteger(L, 3);
+        if (ch < 0 || ch >= AUDIO_CHANNELS) {
+            return luaL_error(L, "Invalid hardware voice channel %d (Must be 0-3)", ch);
+        }
+    } else {
+        // Simple alternate allocation toggle: if Channel 2 is busy, use Channel 3
+        if (memory[CH_STATUS(CHAN_SFX_1)] != 0 && memory[CH_STATUS(CHAN_SFX_2)] == 0) {
+            ch = CHAN_SFX_2;
+        }
+    }
+
+    // pitch (default: 256 -> 1.0 baseline)
+    int pitch  = (lua_gettop(L) >= 4 && !lua_isnil(L, 4)) ? luaL_checkinteger(L, 4) : 256;
+
+    // Bound check parameters
+    if (volume < 0) volume = 0; if (volume > 255) volume = 255;
+    if (pitch < 0)  pitch = 0;
+
+    // --- FETCH SOUND METADATA HEADER FROM RAM ---
+    // Header entry layout size is exactly 7 bytes
+    uint32_t header_ptr = ADDR_SNDBNK + (slot * 7);
+
+    // Reconstruct fields safely across little-endian alignments
+    uint16_t sample_offset = memory[header_ptr + 0] | (memory[header_ptr + 1] << 8);
+    uint16_t sample_length = memory[header_ptr + 2] | (memory[header_ptr + 3] << 8);
+    uint16_t loop_point    = memory[header_ptr + 4] | (memory[header_ptr + 5] << 8);
+    uint8_t  flags         = memory[header_ptr + 6];
+
+    // If length is zero, no asset exists in this slot!
+    if (sample_length == 0) {
+        return 0; 
+    }
+
+    // --- POKE DATA TO AUDIO REGISTERS ---
+    // Stop the channel processing momentarily to change values cleanly
+    memory[CH_STATUS(ch)] = 0;
+
+    // Write address pointers and lengths
+    memory[CH_ADDR_LO(ch)] = sample_offset & 0xFF;
+    memory[CH_ADDR_HI(ch)] = (sample_offset >> 8) & 0xFF;
+    memory[CH_LEN_LO(ch)]  = sample_length & 0xFF;
+    memory[CH_LEN_HI(ch)]  = (sample_length >> 8) & 0xFF;
+
+    // Check Bit 0 of our compiled flag byte to set hardware loop register
+    memory[CH_LOOP(ch)]    = (flags & 0x01);
+
+    // Commit volume and pitch settings
+    memory[CH_VOLUME(ch)]  = (uint8_t)volume;
+    memory[CH_PITCH(ch)]   = (uint8_t)pitch; // If using larger pitches, shift down or expand register bounds
+
+    // Activate the runtime decompression flag matching the asset type
+    // (flags with Bit 1 set means status = 2 [BRR], otherwise status = 1 [PCM])
+    uint8_t run_mode = (flags & 0x02) ? 2 : 1;
+    memory[CH_STATUS(ch)] = run_mode;
+
+    // Slam the hardware trigger high! The SPU callback thread will notice this,
+    // clear out its internal sample counters/caches, and set it back to 0.
+    memory[CH_TRIGGER(ch)] = 1;
+
+    return 0;
+}
 
 /* ═══════════════════════════════════════════════════════════════
    FLASHROM UTILITES
@@ -1025,8 +1006,8 @@ static const luaL_Reg api[] = {
     { "module",    l_module    },
 
     /* assets & fonts */
-    { "sbank",     l_sbank     },
-    { "spr",       l_spr       },
+    { "bank",      l_sbank     },
+    { "sprite",    l_sprite    },
     { "sprsht",    l_sprsht    },
     { "text",      l_text      },
 

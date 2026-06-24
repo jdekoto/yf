@@ -1,73 +1,66 @@
-        
+#!/usr/bin/env python3
 import json
 import sys
+import os
 
-# Virtual console hardware specifications
+# Yellow Feather Core Engine layout constraints
 MAP_WIDTH = 512
 MAP_HEIGHT = 256
 OUTPUT_SIZE = MAP_WIDTH * MAP_HEIGHT
 
+def compile_map(json_path, bin_path):
+    if not os.path.exists(json_path):
+        print(f"Error: Cannot find input file '{json_path}'")
+        sys.exit(1)
 
-def bake_map(json_path, bin_path):
-    try:
-        with open(json_path, "r") as f:
-            data = json.load(f)
-    except Exception as e:
-        print(f"Error reading JSON file: {e}")
-        return
+    print(f"Reading {json_path}...")
+    with open(json_path, 'r') as f:
+        data = json.load(f)
 
-    tile_size = data.get("tileSize", 8)
+    # Initialize a clean, flat 128KB map buffer filled with 0 (transparent/empty)
+    out_buffer = bytearray(OUTPUT_SIZE)
+
+    # Track structural dimensions exported from Sprite Fusion
+    sf_width = data.get("mapWidth", 0)
+    sf_height = data.get("mapHeight", 0)
+    print(f"Sprite Fusion Map Dimensions: {sf_width}x{sf_height}")
+
     layers = data.get("layers", [])
+    print(f"Processing {len(layers)} layer(s)...")
 
-    # Step 1: Gather all tiles and convert to grid coordinates
-    all_tiles = []
-    for layer in layers:
-        for tile in layer.get("tiles", []):
-            tile_id = int(tile.get("id", 0))
-            tx = int(tile.get("x", 0))
-            ty = int(tile.get("y", 0))
-            all_tiles.append((tx, ty, tile_id))
+    # Process layers sequentially (higher layers overwrite lower layer tile values)
+    for layer_idx, layer in enumerate(layers):
+        tiles = layer.get("tiles", [])
+        tiles_written = 0
 
-    if not all_tiles:
-        print("Error: No tile data found in map.json!")
-        exit(1)
+        for tile in tiles:
+            # Sprite Fusion coordinates
+            tx = tile.get("x")
+            ty = tile.get("y")
+            
+            # Convert string ID to int
+            tile_id = int(tile.get("id"))
 
-    # Step 2: Find the absolute top-leftmost tile drawn in the editor
-    min_tx = min(t[0] for t in all_tiles)
-    min_ty = min(t[1] for t in all_tiles)
+            # Core Shift Logic: 
+            # Engine treats 0 as transparent and executes 'id - 1'.
+            # Therefore, Sprite Fusion Tile 0 -> Engine Value 1 (draws sprite 0).
+            engine_tile_val = tile_id + 1
 
-    print("=== Toolchain Normalization ===")
-    print(f"Detected editor drawing origin at: Tile ({min_tx}, {min_ty})")
+            # Keep operations within safety limits of the engine's VRAM block boundaries
+            if 0 <= tx < MAP_WIDTH and 0 <= ty < MAP_HEIGHT:
+                dest_offset = ty * MAP_WIDTH + tx
+                out_buffer[dest_offset] = engine_tile_val & 0xFF
+                tiles_written += 1
 
-    buffer = bytearray(OUTPUT_SIZE)
-    tiles_baked = 0
-    tiles_skipped = 0
+        print(f"  -> Layer {layer_idx} ('{layer.get('name', 'Unknown')}'): Baked {tiles_written} tiles.")
 
-    # Step 3: Shift all tiles relative to (0, 0) and bake into linear RAM
-    for tx, ty, tile_id in all_tiles:
-        norm_tx = tx - min_tx
-        norm_ty = ty - min_ty
+    # Write out the final binary image
+    print(f"Writing packed VRAM layout to {bin_path} ({OUTPUT_SIZE} bytes)...")
+    with open(bin_path, 'wb') as f:
+        f.write(out_buffer)
         
-        # Safety bounds check against internal engine limits
-        if 0 <= norm_tx < MAP_WIDTH and 0 <= norm_ty < MAP_HEIGHT:
-            idx = norm_ty * MAP_WIDTH + norm_tx
-            buffer[idx] = (tile_id + 1) & 0xFF
-            tiles_baked += 1
-        else:
-            tiles_skipped += 1
+    print("Map compilation complete!")
 
-    print(f"Successfully shifted and baked: {tiles_baked} tiles.")
-    if tiles_skipped > 0:
-        print(f"Warning: {tiles_skipped} tiles cut off (exceeded {MAP_WIDTH}x{MAP_HEIGHT} layout limit).")
-    
-    try:
-        with open(bin_path, "wb") as f:
-            f.write(buffer)
-    except Exception as e:
-        print(f"Error writing binary file: {e}")
-        
 if __name__ == "__main__":
-    if len(sys.argv) < 3:
-        print("Usage: python bake_map.py <input.json> <output.bin>")
-    else:
-        bake_map(sys.argv[1], sys.argv[2])
+    compile_map(sys.argv[1], sys.argv[2])   
+

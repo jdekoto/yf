@@ -1,6 +1,6 @@
-sprite = {}
+anim = {}
 
-sprsht("assets/sprites.bmp", 0)
+sprsht("assets/sprites/sprites.raw", 40, 16, 0)
 
 -- Define Sprite Sheet Frame IDs
 local FRAME_GROUND  = 0  -- Idle / Standing
@@ -17,13 +17,13 @@ local f  = FRAME_GROUND
 local py = GROUND_Y
 local dy = 0
 
-function sprite.tick()
+function anim.tick()
     cls(0)
-    sbank(0)
+    bank(0)
 
     -- 1. Input Handler (Only trigger jump if player is sitting on the floor)
     if py >= GROUND_Y and btn(4) then
-    		sfx("assets/jmp.wav", 0.6)
+    		sfx(1, 100)
         dy = JUMP_FORCE
     end
 
@@ -48,7 +48,7 @@ function sprite.tick()
 
     -- 4. Render Pipeline
     -- Using flr() prevents sub-pixel jitter artifacts on retro draw grids
-    spr(f, 60, flr(py)) 
+    sprite(f, 60, flr(py)) 
 
     -- Debug Display Interface
     text(string.format("dy: %.2f", dy), 4, 4, 13)

@@ -109,17 +109,6 @@ int l_cstore(lua_State *L) {
     return 0;
 }
 
-/* ── hardware tracker API ──────────────────────────────────────────────── */
-
-int l_feedtracker(lua_State *L) {
-  const char* filename = luaL_checkstring(L, 1);
-  
-  spu_feedtracker(filename);
-  
-  return 0;
-}
-
-
 /* ── vm ──────────────────────────────────────────────────────── */
 
 static const luaL_Reg api[] = {
@@ -133,7 +122,6 @@ static const luaL_Reg api[] = {
     {"memcpy",        l_memcpy},  
     {"reload",        l_reload},
     {"cstore",        l_cstore},
-    {"feed_tracker",  l_feedtracker},
     {NULL, NULL},
 };
 
@@ -195,6 +183,23 @@ static void cpu_hook(lua_State *L, lua_Debug *ar) {
     }
 }
 
+static void register_source(lua_State *L) {
+    // Force-inject "sources/" into Lua's package search path environment
+    lua_getglobal(L, "package");
+    lua_getfield(L, -1, "path");
+    const char* current_path = lua_tostring(L, -1);
+
+    char new_path[1024];
+    // Append both standard file layouts and folder init structures
+    snprintf(new_path, sizeof(new_path), "%s;sources/?.lua;sources/?/init.lua", current_path);
+
+    lua_pop(L, 1); // Pop the old path string
+    lua_pushstring(L, new_path);
+    lua_setfield(L, -2, "path"); // package.path = new_path
+    lua_pop(L, 1); // Pop the package table
+
+}
+
 void vm_init(VM *vm) {
     vm->L = luaL_newstate();
     luaL_openlibs(vm->L);
@@ -206,10 +211,11 @@ void vm_init(VM *vm) {
     lua_pop(vm->L, 1);
     
     api_register(vm->L);
+    register_source(vm->L);
+    
 }
 
 void vm_load(VM *vm, const char *path) {
-    
   
     if (luaL_dofile(vm->L, path) != LUA_OK) {
         fprintf(stderr, "vm_load: %s\n", lua_tostring(vm->L, -1));

@@ -4,7 +4,7 @@
 #include <SDL2/SDL.h>
 #include <stdint.h>
 #include <stdbool.h>
-#include "micromod.h"
+// #include "micromod.h"
 #include "mem.h"
 
 #define AUDIO_CHANNELS 4

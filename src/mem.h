@@ -10,25 +10,25 @@
 #define ADDR_INPUT  0x06040u   /* input state            */
 #define ADDR_AUDIO  0x06050u   /* audio registers        */
 #define ADDR_FONT   0x06200u   /* system font            */
-#define ADDR_SPRB0  0x06500u   /* Sprite Bank 0: 64x64   */
-#define ADDR_SPRB1  0x08500u   /* Sprite Bank 1: 64x64   */
-#define ADDR_SNDBUF 0x10000u   /* audio stream buffer    */
-#define ADDR_MAP    0x30000u   /* tilemap block (128KB)  */
-#define ADDR_CART   0x50000u   /* cart RAM (~256KB)      */
+#define ADDR_SPRB0  0x06500u   /* Sprite Bank 0: 128x64  */
+#define ADDR_SPRB1  0x08500u   /* Sprite Bank 1: 128x64  */
+#define ADDR_SNDBNK 0x10000u   /* sound bank (64KB)      */
+#define ADDR_MAP    0x20000u   /* tilemap block (128KB)  */
+#define ADDR_CART   0x40000u   /* cart RAM (~256KB)      */
 
 #define FB_WID 128
 #define FB_HEI  96
 
-#define CH_STATUS(ch)  (ADDR_AUDIO + ((ch) * 10) + 0)
-#define CH_TRIGGER(ch) (ADDR_AUDIO + ((ch) * 10) + 1)
-#define CH_LOOP(ch)    (ADDR_AUDIO + ((ch) * 10) + 2)
-#define CH_ADDR_0(ch)  (ADDR_AUDIO + ((ch) * 10) + 3) 
-#define CH_ADDR_1(ch)  (ADDR_AUDIO + ((ch) * 10) + 4) 
-#define CH_ADDR_2(ch)  (ADDR_AUDIO + ((ch) * 10) + 5) 
-#define CH_LEN_0(ch)   (ADDR_AUDIO + ((ch) * 10) + 6)
-#define CH_LEN_1(ch)   (ADDR_AUDIO + ((ch) * 10) + 7)
-#define CH_LEN_2(ch)   (ADDR_AUDIO + ((ch) * 10) + 8)
-#define CH_VOLUME(ch)  (ADDR_AUDIO + ((ch) * 10) + 9)
+#define CH_STATUS(ch)   (ADDR_AUDIO + ((ch) * 10) + 0) // 0 = off, 1 = PCM, 2 = BRR
+#define CH_TRIGGER(ch)  (ADDR_AUDIO + ((ch) * 10) + 1) // 1 = Trigger reset
+#define CH_LOOP(ch)     (ADDR_AUDIO + ((ch) * 10) + 2) // 0 = play once, 1 = loop
+#define CH_ADDR_LO(ch)  (ADDR_AUDIO + ((ch) * 10) + 3) // Sample offset low byte
+#define CH_ADDR_HI(ch)  (ADDR_AUDIO + ((ch) * 10) + 4) // Sample offset high byte
+#define CH_LEN_LO(ch)   (ADDR_AUDIO + ((ch) * 10) + 5) // Sample length low byte
+#define CH_LEN_HI(ch)   (ADDR_AUDIO + ((ch) * 10) + 6) // Sample length high byte
+#define CH_VOLUME(ch)   (ADDR_AUDIO + ((ch) * 10) + 7) // 0 to 255
+#define CH_PITCH(ch)    (ADDR_AUDIO + ((ch) * 10) + 8) // 256 = 1.0 speed
+#define CH_BUF_HALF(ch) (ADDR_AUDIO + ((ch) * 10) + 9) // Exposes half the buffer
 #define ADDR_TRACKER_ENABLED (ADDR_AUDIO + 0x42)  // 1-byte toggle (0 = Off, 1 = On)
 #define ADDR_TRACKER_VOLUME  (ADDR_AUDIO + 0x43)  // 1-byte master gain (0 to 255)
 

@@ -8,7 +8,7 @@ This 16-bit fantasy console have all you need to make nostalgic games or works o
 - VM: Lua 5.4 CPU clocked at 6M ops / sec (with hot reload)
 - RAM: 512 KB
 - FB: 16-Bit Display with SQCIF resolution
-- AUDIO: 4 Channels with a MOD Hardware Tracker
+- AUDIO: 4 Channels with BRR Decompression
 - ROM: 16 MB Cassette Slot
 
 ### MEMORY MAP
@@ -18,11 +18,11 @@ Since we are lacking documentation and everything works via peek/poke, here's th
 #define ADDR_INPUT  0x06040u   /* input state            */
 #define ADDR_AUDIO  0x06050u   /* audio registers        */
 #define ADDR_FONT   0x06200u   /* system font            */
-#define ADDR_SPRB0  0x06500u   /* Sprite Bank 0: 64x64   */
-#define ADDR_SPRB1  0x08500u   /* Sprite Bank 1: 64x64   */
-#define ADDR_SNDBUF 0x10000u   /* audio stream buffer    */
-#define ADDR_MAP    0x30000u   /* tilemap block (128KB)  */
-#define ADDR_CART   0x50000u   /* cart RAM (~256KB)      */
+#define ADDR_SPRB0  0x06500u   /* Sprite Bank 0: 128x64  */
+#define ADDR_SPRB1  0x08500u   /* Sprite Bank 1: 128x64  */
+#define ADDR_SNDBNK 0x10000u   /* sound bank (64KB)      */
+#define ADDR_MAP    0x20000u   /* tilemap block (128KB)  */
+#define ADDR_CART   0x40000u   /* cart RAM (~256KB)      */
 ```
 
 ### PROGRESS
@@ -39,5 +39,5 @@ This is to monitor the software's progress:</br>
 - ShrimpCatDev for heavy inspiration + palette and font via [CherryPop](https://github.com/ShrimpCatDev/CherryPop.git)
 - Zep and his entire [Lexaloffle](www.lexaloffle.com) Trilogy for setting the standard of fantasy consoles
 - Rxi for the heavy influence on the framework format via [cel7](https://rxi.itch.io/cel7)
-- and Martin Cameron for the small MOD tracker library via [micromod](https://github.com/martincameron/micromod)
+- and Martin Cameron for the small MOD tracker library even we stopped using it via [micromod](https://github.com/martincameron/micromod)
 
