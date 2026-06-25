@@ -1,18 +1,18 @@
 maptest = {}
 
-reload("assets/map/test.map", 0x20000)
-sprsht("assets/sprites/tiles.raw", 64, 16, 1)
+reload("assets/map/test.map", 0x20400)
+reload("assets/sprites/tiles.raw", 0x08900)
 
 cx = 0
 cy = 0
 
 function maptest.tick()
-	cls(0)
-	bank(1)
+	clear(0)
+	poke(0x06400, 1)   -- switch to sprite bank 0
 	camera(cx, cy)
 	
-	if btn(4) then cx = cx - 1 end
-	if btn(5) then cx = cx + 1 end
+	if btn(4) then cx -= 1 end
+	if btn(5) then cx += 1 end
 	-- Point the map renderer straight at column 55, row 80
 	-- This keeps reading from the start of your map data (0,0),
 	-- but pushes the rendering destination 16 pixels right and 8 pixels down!

@@ -8,6 +8,7 @@
 #include <sys/stat.h>
 #include <time.h>
 #include <stdbool.h>
+#include "api.h"
 
 
 typedef struct { lua_State *L; } VM;

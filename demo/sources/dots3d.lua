@@ -4,7 +4,8 @@ dots3d = {}
 -- 3d dot party
 -- by zep
 -- holy moly yo
--- yea i have no idea what brodie did. 
+-- yea i have no idea what brodie did.
+-- strenuous test on the cpu
 
 local function all(t)
     local i = 0
@@ -14,17 +15,34 @@ local function all(t)
     end
 end
 
+-- absolute ass circfill
+function circfill(cx, cy, r, col)
+    if r < 0 then return end
+    local x, y, err = r, 0, 1 - r
+    while x >= y do
+        rect(cx - x, cy + y, x * 2 + 1, 1, col)
+        rect(cx - x, cy - y, x * 2 + 1, 1, col)
+        rect(cx - y, cy + x, y * 2 + 1, 1, col)
+        rect(cx - y, cy - x, y * 2 + 1, 1, col)
+        y = y + 1
+        if err < 0 then err = err + 2 * y + 1
+        else x = x - 1 err = err + 2 * (y - x) + 1 end
+    end
+end
+
 -- rotate point x,y by a
 -- (rotates around 0,0)
 function rot(x,y,a)
 	local x0=x
-	x = cos(a)*x - sin(a)*y
-	y = cos(a)*y + sin(a)*x0 -- *x is wrong but kinda nice too
+	x = math.cos(a)*x - math.sin(a)*y
+	y = math.cos(a)*y + math.sin(a)*x0 -- *x is wrong but kinda nice too
 	return x,y
 end
 	
+local dt = 0
 function dots3d.tick()
-	cls(0)
+	clear(0)
+	dt += 0.003
 	if (not pt) then
 		-- make some points
 		pt={}
@@ -33,8 +51,8 @@ function dots3d.tick()
 				for z=-1,1,1/2 do
 					p={}
 					p.x=x p.y=y p.z=z
-					p.col=1 + flr(x*2+y*3)%10
-					add(pt,p)
+					p.col=1 + math.floor(x*2+y*3)%10
+					table.insert(pt,p)
 				end
 			end
 		end
@@ -43,10 +61,10 @@ function dots3d.tick()
 		--transform:
 		--world space -> camera space
 		
-		p.cx,p.cz=rot(p.x,p.z,t()*4)
-		p.cy,p.cz=rot(p.y,p.cz,t()*2.5)
+		p.cx,p.cz=rot(p.x,p.z,dt*4)
+		p.cy,p.cz=rot(p.y,p.cz,dt*2.5)
 		
-		p.cz = p.cz + 2 + cos(t()*2.5)
+		p.cz = p.cz + 2 + math.cos(dt*2.5)
 	end
 	
 	-- sort furthest -> closest
@@ -69,7 +87,7 @@ function dots3d.tick()
 	end
 	end
 	
-	rad1 = 5+cos(t()*2)*4
+	rad1 = 5+math.cos(dt*2)*4
 	for p in all(pt) do
 		--transform:
 		--camera space -> screen space
@@ -77,7 +95,6 @@ function dots3d.tick()
 		sy = 45 + p.cy*64/p.cz
 		rad= rad1/p.cz
 		-- draw
-		
 		if (p.cz > .1) then
 			circfill(sx,sy,rad,p.col)
 			circfill(sx+rad/3,sy-rad/3,rad/3,13)

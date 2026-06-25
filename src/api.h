@@ -7,6 +7,8 @@
 
 #include <lua.h>
 
+
+void flush_sram(void);
 /* call once in vm_init() after luaL_openlibs()
    registers all graphics, input, and tilemap functions into _G
    along with ADDR_* and BTN_* constants. */

@@ -54,10 +54,10 @@ void fb_expand(uint16_t *dst) {
 void map_inputs(kit_Context *ctx) {
     // Refresh controller connection states
     
-    poke(0x06044, peek(0x06040));
-    poke(0x06045, peek(0x06041));
-    poke(0x06046, peek(0x06042));
-    poke(0x06047, peek(0x06043));
+    poke(0x06444, peek(0x06440));
+    poke(0x06445, peek(0x06441));
+    poke(0x06446, peek(0x06442));
+    poke(0x06447, peek(0x06443));
 
     uint32_t final_mask = 0;
 
@@ -121,10 +121,10 @@ void map_inputs(kit_Context *ctx) {
     final_mask |= ((uint32_t)p2_mask << 9);
 
     // 3. Poke the 32-bit aggregated mask cleanly across the 4 sequential bytes
-    poke(0x06040, (uint8_t)(final_mask & 0xFF));
-    poke(0x06041, (uint8_t)((final_mask >> 8) & 0xFF));
-    poke(0x06042, (uint8_t)((final_mask >> 16) & 0xFF));
-    poke(0x06043, (uint8_t)((final_mask >> 24) & 0xFF));
+    poke(0x06440, (uint8_t)(final_mask & 0xFF));
+    poke(0x06441, (uint8_t)((final_mask >> 8) & 0xFF));
+    poke(0x06442, (uint8_t)((final_mask >> 16) & 0xFF));
+    poke(0x06443, (uint8_t)((final_mask >> 24) & 0xFF));
 }
 
 // loads everything needed into ram.
@@ -224,29 +224,6 @@ static void title_handler(const char *path, bool is_cart, long offset) {
         }
     }
 }
-/*
-static long find_sentinel(int fd, long file_size) {
-    const char sentinel[8] = {
-        0xDE, 0xAD, 0xBE, 0xEF,
-        0xCA, 0xFE, 0xBA, 0xBE
-    };
-
-    lseek(fd, 0, SEEK_SET);
-    char buf[4096];
-    long pos = 0;
-    ssize_t n;
-    long found = -1;
-
-    while ((n = read(fd, buf, sizeof(buf))) > 0) {
-        for (int i = 0; i < n - 8; i++) {
-            if (memcmp(buf + i, sentinel, 8) == 0)
-                found = pos + i + 8;  // byte AFTER sentinel = exe end 
-        }
-        pos += n;
-    }
-    return found;   // -1 if not found
-}
-*/
 
 static long find_sentinel(int fd, long file_size) {
     const char sentinel[8] = {
@@ -450,6 +427,7 @@ int main(int argc, char *argv[]) {
         #endif
         system(cleanup_cmd);
     }
+    flush_sram();
     vm_shutdown(&vm);
     kit_destroy(ctx);
     return 0;
