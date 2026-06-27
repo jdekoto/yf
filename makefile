@@ -1,7 +1,7 @@
 
 CC = clang
 WINCC = x86_64-w64-mingw32-gcc
-CFLAGS = -std=c11 -Wall -Wextra -O2 \
+CFLAGS = -std=c11 -Wall -Wextra -O3 -flto \
          -Isrc -Ivendor/lua -Ivendor/micromod -Ivendor/microtar \
          
 LIBS = -lSDL2 -lm
@@ -35,6 +35,4 @@ windows: $(SRC)
 	$(WINCC) $(CFLAGS) $(SRC) $(WIN_LDF) -o build/windows/$(TARGET)
 	
 osx: $(SRC)
-	xcrun $(CC) $(SRC) $(CFLAGS) $(OSX_LDF) -o build/osx/YellowFeather.app/Contents/MacOS/$(TARGET)
-	
-
+	xcrun $(CC) $(SRC) $(CFLAGS) $(OSX_LDF) -o build/osx/YellowFeather.app/Contents/MacOS/$(TARGET) -fno-lto

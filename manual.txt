@@ -11,32 +11,32 @@ specifications:
   - 512 KB Memory
   - 16-Bit Display with 128 * 96 resolution
   - 9 buttons per player (which is 2)
-  - 4 PCM Channels (0 and 1 reserved for MOD)
+  - 4 PCM/BRR Channels
   - 16 MB cassette slot
   - Unlimited Flashrom for saving
 
 (NOTE: i'm not going to go over the Lua syntax for now, so please take a look at the manual: https://www.lua.org/manual/5.4/manual.html)
 
-Mappings:
-    ╭────╮                    ╭────╮    
-    ╰─06─╯────────────────────╰─07─╯    
-    │╭────────────────────────────╮│    
-    ││                            ││    
-    ││                            ││    
-    ││                            ││    
-    ││          128*96            ││    
-    ││                            ││    
-    ││                            ││    
-    ││                            ││    
-    │╰────────────────────────────╯│    
-    │     ┌2┐               ┌5┐    │    
-    │   ┌0┼─┼1┐          ┌4┐└─┘    │    
-    │   └─┼─┼─┘  ┌────┐  └─┘       │    
-    │     └3┘    └─08─┘            │    
-    ╰──────────────────────────────╯ 
-    	  (for p2, index starts at 9)
-    	  
+mappings:
+    ╭────╮                    ╭────╮
+    ╰─06─╯────────────────────╰─07─╯
+    │╭────────────────────────────╮│
+    ││                            ││
+    ││                            ││
+    ││                            ││
+    ││          128*96            ││
+    ││                            ││
+    ││                            ││
+    ││                            ││
+    │╰────────────────────────────╯│
+    │     ┌2┐               ┌5┐    │
+    │   ┌0┼─┼1┐          ┌4┐└─┘    │
+    │   └─┼─┼─┘  ┌────┐  └─┘       │
+    │     └3┘    └─08─┘            │
+    ╰──────────────────────────────╯
+       (for p2, index starts at 9)
+
 i haven't implemented too many customizations of the controller mappings so this will be a relatively short sections. 
 the bumpers 6 and 7 are mapped to the face buttons on standard controllers, so 4 is A, 5 is B, 6 is X, and 7 is Y.
 in order to player local multiplayer, you would need two controllers at the same time. im still tryna figure out a better way but this is how it is right now.
-    	  
+
