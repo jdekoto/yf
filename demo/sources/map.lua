@@ -8,7 +8,7 @@ cy = 0
 
 function maptest.tick()
 	clear(0)
-	poke(0x06400, 1)   -- switch to sprite bank 0
+	poke(0x06409, 1)   -- switch to sprite bank 1
 	camera(cx, cy)
 	
 	if btn(4) then cx -= 1 end

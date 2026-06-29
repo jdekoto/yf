@@ -31,15 +31,9 @@
 #define MAP_WIDTH      512
 #define MAP_HEIGHT     256
 
-/* ── global drawing configuration states ────────────────────── */
-static int g_cam_x = 0;
-static int g_cam_y = 0;
-
-static int g_clip_enabled = 0;
-static int g_clip_x0 = 0;
-static int g_clip_y0 = 0;
-static int g_clip_x1 = FB_WID - 1;
-static int g_clip_y1 = FB_HEI - 1;
+/* ── custom font lookup map ──────────────────────────────────── */
+static int g_ascii_to_font_index[256];
+static int g_font_map_initialized = 0;
 
 /* ── native engine 16-color palette storage ──────────────────── */
 /* ── 16-bit color packing formula ────────────────────────────── */
@@ -64,19 +58,22 @@ static inline uint16_t _resolve_color(int col) {
 
 /* Natively handles camera transforms, clip windows, and memory-poking */
 static inline void _pixel(int x, int y, int col) {
-    // 1. Shift by global camera offset
-    x -= g_cam_x;
-    y -= g_cam_y;
 
-    // 2. Hardware Clipping Window Bounds check
-    if (g_clip_enabled) {
-        if (x < g_clip_x0 || x > g_clip_x1 || y < g_clip_y0 || y > g_clip_y1) return;
+    int16_t cam_x = (int16_t)peek2(REG_CAM_X);
+    int16_t cam_y = (int16_t)peek2(REG_CAM_Y);
+
+    x -= cam_x;
+    y -= cam_y;
+    
+    if (peek(REG_CLIP_EN) == 1) {
+        if (x < peek(REG_CLIP_X0) || x > peek(REG_CLIP_X1) ||
+            y < peek(REG_CLIP_Y0) || y > peek(REG_CLIP_Y1)) {
+            return; // Hardware Clip Discarded
+        }
     }
-
-    // 3. Strict physical frame-buffer clipping
+    
     if (x < 0 || x >= FB_WID || y < 0 || y >= FB_HEI) return;
 
-    // 4. Translate and write word cleanly using standard low-level hardware abstraction
     uint16_t color16 = _resolve_color(col);
     uint32_t addr = ADDR_FB + (uint32_t)(y * FB_WID + x) * 2;
     poke2(addr, color16);
@@ -111,6 +108,56 @@ static void init_pal(void) {
         memory[target_addr]     = (uint8_t)(color16 & 0xFF);        // Low byte
         memory[target_addr + 1] = (uint8_t)((color16 >> 8) & 0xFF); // High byte
     }
+}
+
+static void map_font(void) {
+    if (g_font_map_initialized) return;
+
+    for (int i = 0; i < 256; i++) {
+        g_ascii_to_font_index[i] = -1;
+    }
+
+    const char *sequential_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ !__0123456789.:(){}-+/*,=\"'_[]____?<>@#$%^__~";
+    int len = (int)strlen(sequential_chars);
+    for (int i = 0; i < len; i++) {
+        unsigned char b = (unsigned char)sequential_chars[i];
+        g_ascii_to_font_index[b] = i; /* 0-indexed matches Lua's i - 1 */
+    }
+
+    /* Manual character position overrides matching your Lua setup */
+    g_ascii_to_font_index[(unsigned char)'_'] = 43;  
+    g_ascii_to_font_index[(unsigned char)'['] = 44;  
+    g_ascii_to_font_index[(unsigned char)']'] = 45;  
+    g_ascii_to_font_index[(unsigned char)'{'] = 47;  
+    g_ascii_to_font_index[(unsigned char)'}'] = 48;  
+    g_ascii_to_font_index[(unsigned char)'^'] = 49;  
+    g_ascii_to_font_index[(unsigned char)'?'] = 50;  
+    g_ascii_to_font_index[(unsigned char)'<'] = 51;  
+    g_ascii_to_font_index[(unsigned char)'>'] = 52;  
+    g_ascii_to_font_index[(unsigned char)'@'] = 53;  
+    g_ascii_to_font_index[(unsigned char)'#'] = 54;  
+    g_ascii_to_font_index[(unsigned char)'$'] = 55;  
+    g_ascii_to_font_index[(unsigned char)'%'] = 56;  
+    g_ascii_to_font_index[(unsigned char)'&'] = 57;  
+    g_ascii_to_font_index[(unsigned char)'~'] = 58;  
+
+    g_font_map_initialized = 1;
+}
+
+/* Internal proportional character width scanner */
+static int _get_char_width(uint32_t font_char_addr) {
+    int max_col = 0;
+    for (int row = 0; row < FONT_CHAR_H; row++) {
+        uint8_t row_byte = peek(font_char_addr + row);
+        for (int col = 0; col < FONT_CHAR_W; col++) {
+            uint8_t bit_mask = 0x80 >> col;
+            if ((row_byte & bit_mask) != 0) {
+                if (col > max_col) max_col = col;
+            }
+        }
+    }
+    if (max_col == 0) return 2;
+    return max_col + 1;
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -230,6 +277,13 @@ static int l_rect(lua_State *L) {
     int w = (int)luaL_checknumber(L, 3);
     int h = (int)luaL_checknumber(L, 4);
     int col = (int)luaL_checkinteger(L, 5);
+    
+    // 1. Fetch live transformations from Hardware Registers
+    int16_t cam_x = (int16_t)peek2(REG_CAM_X);
+    int16_t cam_y = (int16_t)peek2(REG_CAM_Y);
+    
+    x -= cam_x;
+    y -= cam_y;
 
     // Early exit for invisible dimensions
     if (w <= 0 || h <= 0) return 0;
@@ -245,9 +299,24 @@ static int l_rect(lua_State *L) {
     if (y1 < 0) y1 = 0;
     if (x2 > FB_WID) x2 = FB_WID;
     if (y2 > FB_HEI) y2 = FB_HEI;
+    
+    // 2. Fetch Scissors Engine configuration settings
+    uint8_t clip_en  = peek(REG_CLIP_EN);
+    int min_x = 0;
+    int min_y = 0;
+    int max_x = FB_WID - 1;
+    int max_y = FB_HEI - 1;
+
+    if (clip_en == 1) {
+        min_x = (int)peek(REG_CLIP_X0);
+        min_y = (int)peek(REG_CLIP_Y0);
+        max_x = (int)peek(REG_CLIP_X1);
+        max_y = (int)peek(REG_CLIP_Y1);
+    }
 
     // Early exit if the rectangle is entirely off-screen
     if (x1 >= x2 || y1 >= y2) return 0;
+
 
     // 4. Resolve color to a single 16-bit word once
     uint16_t color = _resolve_color(col);
@@ -259,6 +328,10 @@ static int l_rect(lua_State *L) {
 
     // 5. Blast data row-by-row into the unmanaged memory map
     for (int cy = y1; cy < y2; cy++) {
+        if (y1 < min_y || y1 > max_y) continue;
+        // if (y2 < min_y || y2 > max_y) continue; // because of this and x2 i dont know for sure if rect will obey clipping
+        if (x1 < min_x || x1 > max_x) continue;
+        // if (x2 < min_x || x2 > max_x) continue;
         // Calculate the physical byte start offset for this specific row line
         uint32_t row_bytes_offset = (cy * FB_WID + x1) * 2;
         
@@ -274,29 +347,32 @@ static int l_rect(lua_State *L) {
 
 /* camera([x, y]) — apply global hardware camera view displacement */
 static int l_camera(lua_State *L) {
-    g_cam_x = (int)luaL_optinteger(L, 1, 0);
-    g_cam_y = (int)luaL_optinteger(L, 2, 0);
+    int16_t x = (int16_t)luaL_optinteger(L, 1, 0);
+    int16_t y = (int16_t)luaL_optinteger(L, 2, 0);
+
+    // Write straight into virtual physical memory addresses
+    poke2(REG_CAM_X, x);
+    poke2(REG_CAM_Y, y);
+
     return 0;
 }
 
 /* clip([x, y, w, h]) — applies global rendering boundaries */
 static int l_clip(lua_State *L) {
-    if (lua_isnoneornil(L, 1) || lua_isnoneornil(L, 2) || lua_isnoneornil(L, 3) || lua_isnoneornil(L, 4)) {
-        g_clip_enabled = 0;
-        g_clip_x0 = 0;
-        g_clip_y0 = 0;
-        g_clip_x1 = FB_WID - 1;
-        g_clip_y1 = FB_HEI - 1;
+    if (lua_gettop(L) == 0) {
+        // Disabling clipping mirrors turning off a hardware flag register
+        poke(REG_CLIP_EN, 0);
     } else {
-        g_clip_enabled = 1;
-        int x = (int)luaL_checknumber(L, 1);
-        int y = (int)luaL_checknumber(L, 2);
-        int w = (int)luaL_checknumber(L, 3);
-        int h = (int)luaL_checknumber(L, 4);
-        g_clip_x0 = x;
-        g_clip_y0 = y;
-        g_clip_x1 = x + w - 1;
-        g_clip_y1 = y + h - 1;
+        uint8_t x = (uint8_t)luaL_checkinteger(L, 1);
+        uint8_t y = (uint8_t)luaL_checkinteger(L, 2);
+        uint8_t w = (uint8_t)luaL_checkinteger(L, 3);
+        uint8_t h = (uint8_t)luaL_checkinteger(L, 4);
+
+        poke(REG_CLIP_EN, 1);
+        poke(REG_CLIP_X0, x);
+        poke(REG_CLIP_Y0, y);
+        poke(REG_CLIP_X1, x + w - 1);
+        poke(REG_CLIP_Y1, y + h - 1);
     }
     return 0;
 }
@@ -316,7 +392,24 @@ int l_sprite(lua_State *L) {
     bool flip_x  = lua_toboolean(L, 6);
     bool flip_y  = lua_toboolean(L, 7);
 
-    uint8_t current_bank = memory[ADDR_CURBNK];
+    int16_t cam_x = (int16_t)peek2(REG_CAM_X);
+    int16_t cam_y = (int16_t)peek2(REG_CAM_Y);
+
+    screen_x -= cam_x;
+    screen_y -= cam_y;
+
+    uint8_t clip_en = peek(REG_CLIP_EN);
+    int min_x = 0, min_y = 0;
+    int max_x = FB_WID - 1, max_y = FB_HEI - 1;
+
+    if (clip_en == 1) {
+        min_x = (int)peek(REG_CLIP_X0);
+        min_y = (int)peek(REG_CLIP_Y0);
+        max_x = (int)peek(REG_CLIP_X1);
+        max_y = (int)peek(REG_CLIP_Y1);
+    }
+
+    uint8_t current_bank = memory[REG_BANK_SW];
     if (current_bank > 1) current_bank = 0;
 
     uint32_t sheet_base = bank_addresses[current_bank];
@@ -332,11 +425,12 @@ int l_sprite(lua_State *L) {
     int total_h = h * 8;
 
     for (int py = 0; py < total_h; py++) {
+        if (py < min_y || py > max_y) continue;
         for (int px = 0; px < total_w; px++) {
             int dest_x = screen_x + px;
             int dest_y = screen_y + py;
-
             if (dest_x < 0 || dest_x >= 128 || dest_y < 0 || dest_y >= 96) continue;
+            if (px < min_x || px > max_x) continue;
 
             int target_src_x = flip_x ? (total_w - 1 - px) : px;
             int target_src_y = flip_y ? (total_h - 1 - py) : py;
@@ -360,60 +454,6 @@ int l_sprite(lua_State *L) {
         }
     }
     return 0;
-}
-
-// custom font lookup map 
-static int g_ascii_to_font_index[256];
-static int g_font_map_initialized = 0;
-
-static void map_font(void) {
-    if (g_font_map_initialized) return;
-
-    for (int i = 0; i < 256; i++) {
-        g_ascii_to_font_index[i] = -1;
-    }
-
-    const char *sequential_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ !__0123456789.:(){}-+/*,=\"'_[]____?<>@#$%^__~";
-    int len = (int)strlen(sequential_chars);
-    for (int i = 0; i < len; i++) {
-        unsigned char b = (unsigned char)sequential_chars[i];
-        g_ascii_to_font_index[b] = i; /* 0-indexed matches Lua's i - 1 */
-    }
-
-    /* Manual character position overrides matching your Lua setup */
-    g_ascii_to_font_index[(unsigned char)'_'] = 43;  
-    g_ascii_to_font_index[(unsigned char)'['] = 44;  
-    g_ascii_to_font_index[(unsigned char)']'] = 45;  
-    g_ascii_to_font_index[(unsigned char)'{'] = 47;  
-    g_ascii_to_font_index[(unsigned char)'}'] = 48;  
-    g_ascii_to_font_index[(unsigned char)'^'] = 49;  
-    g_ascii_to_font_index[(unsigned char)'?'] = 50;  
-    g_ascii_to_font_index[(unsigned char)'<'] = 51;  
-    g_ascii_to_font_index[(unsigned char)'>'] = 52;  
-    g_ascii_to_font_index[(unsigned char)'@'] = 53;  
-    g_ascii_to_font_index[(unsigned char)'#'] = 54;  
-    g_ascii_to_font_index[(unsigned char)'$'] = 55;  
-    g_ascii_to_font_index[(unsigned char)'%'] = 56;  
-    g_ascii_to_font_index[(unsigned char)'&'] = 57;  
-    g_ascii_to_font_index[(unsigned char)'~'] = 58;  
-
-    g_font_map_initialized = 1;
-}
-
-/* Internal proportional character width scanner */
-static int _get_char_width(uint32_t font_char_addr) {
-    int max_col = 0;
-    for (int row = 0; row < FONT_CHAR_H; row++) {
-        uint8_t row_byte = peek(font_char_addr + row);
-        for (int col = 0; col < FONT_CHAR_W; col++) {
-            uint8_t bit_mask = 0x80 >> col;
-            if ((row_byte & bit_mask) != 0) {
-                if (col > max_col) max_col = col;
-            }
-        }
-    }
-    if (max_col == 0) return 2;
-    return max_col + 1;
 }
 
 /* text(str, x, y, [col]) 
@@ -493,7 +533,7 @@ static int l_map(lua_State *L) {
     int tw  = (int)luaL_optinteger(L, 5, FB_WID / SPR_W);
     int th  = (int)luaL_optinteger(L, 6, FB_HEI / SPR_H);
 
-    uint8_t current_bank = memory[ADDR_CURBNK];
+    uint8_t current_bank = memory[REG_BANK_SW];
     if (current_bank > 1) current_bank = 0;
 
     uint32_t sheet_base  = bank_addresses[current_bank];
@@ -576,7 +616,7 @@ static int l_btnp(lua_State *L) {
    AUDIO PROCESSING API
    ═══════════════════════════════════════════════════════════════ */
 
-/* * sound(slot, [volume], [channel], [pitch])
+/* sound(slot, [volume], [channel], [pitch])
  * Lua syntax examples: 
  * sound(5)             -- Plays slot 5 on an auto-allocated SFX channel
  * sound(12, 128, 2)    -- Plays slot 12 on channel 2 at half volume
@@ -613,14 +653,14 @@ static int l_sound(lua_State *L) {
     if (pitch < 0)  pitch = 0;
 
     // --- FETCH SOUND METADATA HEADER FROM RAM ---
-    // Header entry layout size is exactly 7 bytes
-    uint32_t header_ptr = ADDR_SNDBNK + (slot * 7);
+    // Header entry layout size is exactly 12 bytes
+    uint32_t header_ptr = ADDR_SNDBNK + (slot * 12);
 
-    // Reconstruct fields safely across little-endian alignments
-    uint16_t sample_offset = memory[header_ptr + 0] | (memory[header_ptr + 1] << 8);
-    uint16_t sample_length = memory[header_ptr + 2] | (memory[header_ptr + 3] << 8);
-    uint16_t loop_point    = memory[header_ptr + 4] | (memory[header_ptr + 5] << 8);
-    uint8_t  flags         = memory[header_ptr + 6];
+    // Reconstruct fields safely using 32-bit and 16-bit type casting
+    uint32_t sample_offset = *(uint32_t*)&memory[header_ptr + 0];
+    uint32_t sample_length = *(uint32_t*)&memory[header_ptr + 4];
+    uint16_t loop_point    = *(uint16_t*)&memory[header_ptr + 8];
+    uint8_t  flags         = memory[header_ptr + 11]; // Flags byte moved to offset 11
 
     // If length is zero, no asset exists in this slot!
     if (sample_length == 0) {
@@ -631,7 +671,8 @@ static int l_sound(lua_State *L) {
     // Stop the channel processing momentarily to change values cleanly
     memory[CH_STATUS(ch)] = 0;
 
-    // Write address pointers and lengths
+    // Write address pointers and lengths (Note: your current CH_ADDR/LEN registers 
+    // are 16-bit, which safely fits up to a 64KB soundbank boundary)
     memory[CH_ADDR_LO(ch)] = sample_offset & 0xFF;
     memory[CH_ADDR_HI(ch)] = (sample_offset >> 8) & 0xFF;
     memory[CH_LEN_LO(ch)]  = sample_length & 0xFF;
@@ -642,28 +683,20 @@ static int l_sound(lua_State *L) {
 
     // Commit volume and pitch settings
     memory[CH_VOLUME(ch)]  = (uint8_t)volume;
-    memory[CH_PITCH(ch)]   = (uint8_t)pitch; // If using larger pitches, shift down or expand register bounds
+    memory[CH_PITCH(ch)]   = (uint8_t)pitch; 
 
     // Activate the runtime decompression flag matching the asset type
-    // (flags with Bit 1 set means status = 2 [BRR], otherwise status = 1 [PCM])
     uint8_t run_mode = (flags & 0x02) ? 2 : 1;
     memory[CH_STATUS(ch)] = run_mode;
 
-    // Slam the hardware trigger high! The SPU callback thread will notice this,
-    // clear out its internal sample counters/caches, and set it back to 0.
+    // Slam the hardware trigger high!
     memory[CH_TRIGGER(ch)] = 1;
-
     return 0;
 }
 
 // closure function
 static int l_closure_play(lua_State *L) {
-    // retrieve the secret upvalues
-    const char* filename = lua_tostring(L, lua_upvalueindex(1));
-    float volume = (float)lua_tonumber(L, lua_upvalueindex(2));
-    
-    // direct hardware execute
-    spu_play_module(filename, volume);
+    spu_play_module();
     return 0;
 }
 
@@ -692,12 +725,12 @@ static int l_closure_stop(lua_State *L) {
 int l_module(lua_State *L) {
     const char* filename = luaL_checkstring(L, 1);
     double volume = luaL_optnumber(L, 2, 1.0);
+    
+    spu_start_module(filename, volume);
 
     lua_newtable(L); // Table is now at stack index -1
-
-    lua_pushstring(L, filename);             // push value
-    lua_pushnumber(L, volume);               // push value
-    lua_pushcclosure(L, l_closure_play, 2);
+    
+    lua_pushcfunction(L, l_closure_play);
     lua_setfield(L, -2, "play");             // table.play = closure
 
     lua_pushcfunction(L, l_closure_pause);

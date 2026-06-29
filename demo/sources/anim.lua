@@ -11,7 +11,7 @@ local dy = 0
 function anim.tick()
 	-- clear the framebuffer again
 	clear(0)
-	poke(0x06400, 0) -- switch to sprite bank 0
+	poke(0x06409, 0) -- switch to sprite bank 0
 
 	-- jump if player is sitting on the floor
 	if py >= 78 and btn(4) then

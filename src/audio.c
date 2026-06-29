@@ -11,17 +11,37 @@
 
 #define GATE_RAMP_SAMPLES 64
 
+// ─── ADSR HARDWARE ENVELOPE CONFIGURATION ───
+typedef enum {
+    ADSR_IDLE,
+    ADSR_ATTACK,
+    ADSR_DECAY,
+    ADSR_SUSTAIN,
+    ADSR_RELEASE
+} adsr_state_t;
+
+// State registries per hardware channel
+static adsr_state_t ch_adsr_state[4]     = {ADSR_IDLE, ADSR_IDLE, ADSR_IDLE, ADSR_IDLE};
+static int32_t      ch_adsr_volume[4]    = {0, 0, 0, 0};       // High precision: 0 to 65536
+static uint32_t     ch_adsr_attack[4]    = {1200, 1200, 1200, 1200}; // Envelope increment per sample
+static uint32_t     ch_adsr_decay[4]     = {400, 400, 400, 400};   // Envelope decrement per sample
+static int32_t      ch_adsr_sustain[4]   = {45000, 45000, 45000, 45000}; // Sustain amplitude floor boundary
+static uint32_t     ch_adsr_release[4]   = {350, 350, 350, 350};   // Envelope decrement during Note-Off
 
 // SPU INTERNAL HARDWARE STATE REGISTRIES
 static uint32_t ch_sample_cursor[4] = {0, 0, 0, 0}; // 16.16 fixed-point sample index tracking
 static int32_t  ch_brr_p1[4]        = {0, 0, 0, 0}; // Filter history sample (t-1)
 static int32_t  ch_brr_p2[4]        = {0, 0, 0, 0}; // Filter history sample (t-2)
 
-// tiny 16-sample local cache per channel to hold the current active decompressed block
+// Loop cache optimization targets (Populated on instrument load to eliminate inner-loop overhead)
+static uint32_t ch_loop_start_frame[4] = {0, 0, 0, 0};
+static uint32_t ch_loop_end_frame[4]   = {0, 0, 0, 0};
+
+// Tiny 16-sample local cache per channel to hold the current active decompressed block
 static int16_t  ch_brr_cache[4][16];
 static int32_t  ch_current_block[4] = {-1, -1, -1, -1}; // Tracks which block index is cached
 
-// cm sequencer data
+// CM Sequencer metadata
 static uint8_t* cm_data = NULL;
 static uint16_t song_length = 0;
 static uint8_t  track_bpm = 125;
@@ -44,18 +64,14 @@ static float c_tracker_volume = 1.0f;
 static float c_fade_target = 1.0f;
 static float c_fade_step_per_chunk = 0.0f;
 
-// Note frequency lookup map: 128 represents 1.0 standard playback speed (Octave 2)
-// honestly we need like 5-8 octaves so we'll rework everything but pitch does infact work
+// Frequency lookup map: 128 represents 1.0 standard baseline playback speed
 static const uint8_t note_pitch_table[36] = {
-    // Octave 0 (Low Bass frequencies)
     16, 17, 18, 19, 20, 21, 23, 24, 25, 27, 29, 30,
-    // Octave 1
     32, 34, 36, 38, 40, 43, 45, 48, 51, 54, 57, 60,
-    // Octave 2 (Base Octave: 128 is C-2 native speed)
     128, 136, 144, 152, 161, 171, 181, 192, 203, 215, 228, 242
 };
 
-// brr decoder, yes we had to cop it from the snes
+// Bit-exact SNES BRR decompression engine
 static void decode_brr_block_to_cache(const uint8_t *brr_block, int16_t *out_cache, int32_t *p1, int32_t *p2) {
     uint8_t header = brr_block[0];
     uint8_t shift  = (header >> 4) & 0x0F;
@@ -92,76 +108,97 @@ static void decode_brr_block_to_cache(const uint8_t *brr_block, int16_t *out_cac
     }
 }
 
-// sequencer tick engine
+// Sequencer routing clock
 void tick_tracker(void) {
-    if (!cm_data || memory[ADDR_TRACKER_ENABLED] == 0) return;
+    if (!cm_data || memory[TRACKER_ENABLED] == 0) return;
 
-    // Mathematical timing formula conversion: (Sample Rate * 2.5) / BPM
     uint32_t samples_per_tick = (22050 * 5) / (track_bpm * 2);
     sample_tick_counter++;
     
     if (sample_tick_counter < samples_per_tick) return;
-    sample_tick_counter = 0; 
+    sample_tick_counter = 0;
 
-    // --- TICK 0: ROW EVALUATION (TRIGGER NEW NOTES / INSTRUMENTS) ---
+    // ─── TICK 0: ROW EVALUATION (TRIGGER ENVELOPES / SAMPLES) ───
     if (current_tick == 0) {
         uint8_t* order_list = cm_data + 8;
         uint8_t pattern_idx = order_list[current_order];
         uint8_t* pattern_ptr = cm_data + 8 + 128 + (pattern_idx * 1024);
         uint8_t* row_ptr = pattern_ptr + (current_row * 16);
         
-        // poke the values somewhere a UI/game can peek them.
         memory[ADDR_AUDIO + 0x48] = current_order;
         memory[ADDR_AUDIO + 0x49] = current_row;
         memory[ADDR_AUDIO + 0x4A] = pattern_idx;
 
         for (int ch = 0; ch < 4; ch++) {
-            uint8_t note  = row_ptr[(ch * 5) + 0];
-            uint8_t inst  = row_ptr[(ch * 5) + 1];
-            uint8_t vol   = row_ptr[(ch * 5) + 2];
-            uint8_t eff   = row_ptr[(ch * 5) + 3];
-            uint8_t param = row_ptr[(ch * 5) + 4];
+            uint8_t note  = row_ptr[(ch * 4) + 0];
+            uint8_t inst  = row_ptr[(ch * 4) + 1];
+            uint8_t eff   = row_ptr[(ch * 4) + 2];
+            uint8_t param = row_ptr[(ch * 4) + 3];
 
-            if (inst > 0 && inst <= 64 ) {
+            // 1. Unpack Aligned 12-Byte Asset Layout
+            if (inst > 0 && inst <= 64) {
                 uint32_t slot = inst - 1;
-                uint32_t header_ptr = ADDR_SNDBNK + (slot * 7);
+                uint32_t header_ptr = ADDR_SNDBNK + (slot * 12); // Updated 12-byte leap boundary
                 
-                memory[CH_ADDR_LO(ch)] = memory[header_ptr + 0];
-                memory[CH_ADDR_HI(ch)] = memory[header_ptr + 1];
-                memory[CH_LEN_LO(ch)]  = memory[header_ptr + 2];
-                memory[CH_LEN_HI(ch)]  = memory[header_ptr + 3];
-                memory[CH_VOLUME(ch)]  = memory[header_ptr + 4];
-                memory[CH_LOOP(ch)]    = memory[header_ptr + 6] & 0x01;
-                memory[CH_STATUS(ch)]  = (memory[header_ptr + 6] & 0x02) ? 2 : 1;
+                uint32_t sample_offset = *(uint32_t*)&memory[header_ptr + 0];
+                uint32_t sample_length = *(uint32_t*)&memory[header_ptr + 4];
+                uint16_t loop_start    = *(uint16_t*)&memory[header_ptr + 8];
+                uint8_t  def_volume    = memory[header_ptr + 10];
+                uint8_t  flags         = memory[header_ptr + 11];
+
+                // Synchronize raw structural markers into SPU Channel Config space
+                memory[CH_ADDR_LO(ch)] = (uint8_t)(sample_offset & 0xFF);
+                memory[CH_ADDR_HI(ch)] = (uint8_t)((sample_offset >> 8) & 0xFF);
+                memory[CH_LEN_LO(ch)]  = (uint8_t)(sample_length & 0xFF);
+                memory[CH_LEN_HI(ch)]  = (uint8_t)((sample_length >> 8) & 0xFF);
+                memory[CH_VOLUME(ch)]  = def_volume;
+                memory[CH_LOOP(ch)]    = flags & 0x01;
+                memory[CH_STATUS(ch)]  = (flags & 0x02) ? 2 : 1;
+
+                // Cache calculated playhead loop parameters locally
+                ch_loop_start_frame[ch] = (uint32_t)loop_start;
+                ch_loop_end_frame[ch]   = (flags & 0x02) ? (sample_length * 16) : sample_length;
+
+                // Kickstart the Envelope State Matrix
+                ch_adsr_state[ch]  = ADSR_ATTACK;
+                ch_adsr_volume[ch] = 0; // Guard against popping initialization clicks
             }
             
-            // Direct Volume Column Evaluation
-            if (vol != 0xFF) {
-                memory[CH_VOLUME(ch)] = vol;
+            // 2. Note-Off / Key-Off Detection Rules (Note 0xFF or custom tracker overrides)
+            if (note == 0xFF) {
+                ch_adsr_state[ch] = ADSR_RELEASE;
             }
 
-            uint16_t target_pitch = note_pitch_table[note - 1];
+            if (eff == 0x0C) { /* Set Volume */
+                memory[CH_VOLUME(ch)] = param;
+            }
+
+            // 3. Runtime ADSR Live Envelope Modification Effects
+            if (eff == 0x08) { // Effect 0x08: Set Attack [High Nibble] & Release [Low Nibble] Rates
+                if ((param >> 4) > 0)   ch_adsr_attack[ch]  = (param >> 4) * 150;
+                if ((param & 0x0F) > 0) ch_adsr_release[ch] = (param & 0x0F) * 50;
+            }
+            if (eff == 0x09) { // Effect 0x09: Set Sustain Level
+                ch_adsr_sustain[ch] = (int32_t)param * 257; // Maps 0-255 scaling straight up to 0-65536
+            }
+
             if (note > 0 && note <= 36) {
+                uint16_t target_pitch = note_pitch_table[note - 1];
                 if (eff == 0x03) {
                     ch_target_pitch[ch] = target_pitch;
                 } else {
                     memory[CH_PITCH(ch)] = (uint8_t)target_pitch;
-                    memory[CH_TRIGGER(ch)] = 1; // Pulse sound engine gate high
+                    memory[CH_TRIGGER(ch)] = 1;
                 }
             }
 
-            if (eff == 0x03 && memory[CH_STATUS(ch)] != 0) {
-                ch_target_pitch[ch] = target_pitch;   /* already playing — glide */
-            } else {
-                memory[CH_PITCH(ch)] = (uint8_t)target_pitch;
-            }
             if (eff == 0x04) {
                 if ((param >> 4) > 0) ch_vibrato_speed[ch] = (param >> 4);
                 if ((param & 0x0F) > 0) ch_vibrato_depth[ch] = (param & 0x0F);
             }
         }
     } 
-    // --- TICKS 1+: SUB-ROW RUNTIME MODIFIERS ---
+    // ─── TICKS 1+: RUNTIME MODIFIERS ───
     else {
         uint8_t* order_list = cm_data + 8;
         uint8_t pattern_idx = order_list[current_order];
@@ -169,13 +206,12 @@ void tick_tracker(void) {
         uint8_t* row_ptr = pattern_ptr + (current_row * 16);
 
         for (int ch = 0; ch < 4; ch++) {
-            uint8_t eff   = row_ptr[(ch * 5) + 3];
-            uint8_t param = row_ptr[(ch * 5) + 4];
+            uint8_t eff   = row_ptr[(ch * 4) + 2];
+            uint8_t param = row_ptr[(ch * 4) + 3];
 
             uint16_t cur_pitch = memory[CH_PITCH(ch)];
             uint8_t  cur_vol   = memory[CH_VOLUME(ch)];
 
-            // we WILL add more effects but for right now, thug it out/
             switch (eff) {
                 case 0x01: // Portamento Up
                     cur_pitch += param;
@@ -208,7 +244,6 @@ void tick_tracker(void) {
             }
 
             if (cur_pitch == 0) cur_pitch = 128;
-            // (Note: To unlock 8 full octaves, change this to a 16-bit write across byte 8 & 9!)
             memory[CH_PITCH(ch)] = (uint8_t)(cur_pitch > 255 ? 255 : cur_pitch);
             memory[CH_VOLUME(ch)] = cur_vol;
         }
@@ -226,9 +261,9 @@ void tick_tracker(void) {
     }
 }
 
-// hardware output
+// Audio Output Streaming Callback Loop
 void spu_callback(void *userdata, uint8_t *stream, int len) {
-    uint8_t tracker_enabled = memory[ADDR_TRACKER_ENABLED];
+    uint8_t tracker_enabled = memory[TRACKER_ENABLED];
 
     if (cm_data && tracker_enabled == 1) {
         if (c_tracker_volume != c_fade_target) {
@@ -238,16 +273,15 @@ void spu_callback(void *userdata, uint8_t *stream, int len) {
                 c_tracker_volume = c_fade_target;
                 c_fade_step_per_chunk = 0.0f;
             }
-            memory[ADDR_TRACKER_VOLUME] = (uint8_t)(c_tracker_volume * 255.0f);
+            memory[TRACKER_VOLUME] = (uint8_t)(c_tracker_volume * 255.0f);
         }
     }
 
     for (int i = 0; i < len; i++) {
-        tick_tracker(); 
+        tick_tracker();
 
         int32_t accum = 0;
         for (int ch = 0; ch < 4; ch++) {
-        // Keep a local static cache of what mode (PCM vs BRR) each channel is configured for
             static uint8_t ch_persisted_mode[4] = {1, 1, 1, 1};
 
             if (memory[CH_TRIGGER(ch)] == 1) {
@@ -255,19 +289,30 @@ void spu_callback(void *userdata, uint8_t *stream, int len) {
                 ch_brr_p1[ch] = 0;
                 ch_brr_p2[ch] = 0;
                 ch_current_block[ch] = -1; 
+                
+                // ─── FIX: Handle Manual Lua Trigger ADSR & Loop Initialization ───
+                if (ch_adsr_state[ch] == ADSR_IDLE) {
+                    ch_adsr_state[ch]  = ADSR_ATTACK;
+                    ch_adsr_volume[ch] = 0; // Prevent loud initialization clicks
+
+                    // Safe lookahead to setup whole-sample loop limits for manual play SFX
+                    uint8_t status = (memory[CH_STATUS(ch)] == 0) ? ch_persisted_mode[ch] : memory[CH_STATUS(ch)];
+                    uint32_t sample_len = ((uint32_t)memory[CH_LEN_HI(ch)] << 8) | memory[CH_LEN_LO(ch)];
+                    
+                    ch_loop_start_frame[ch] = 0;
+                    ch_loop_end_frame[ch]   = (status == 2) ? (sample_len * 16) : sample_len;
+                }
+                
                 memory[CH_TRIGGER(ch)] = 0;
 
-                // If the channel was turned off, wake it back up using its last known playback mode!
                 if (memory[CH_STATUS(ch)] == 0) {
                     memory[CH_STATUS(ch)] = ch_persisted_mode[ch];
                 }
             }
 
-            // Capture the active status now that trigger wakeups have had their say
             uint8_t status = memory[CH_STATUS(ch)];
             if (status == 0) continue; 
 
-            // Save the active state whenever an explicit instrument changes it
             ch_persisted_mode[ch] = status;
 
             uint32_t sample_start = ((uint32_t)memory[CH_ADDR_HI(ch)] << 8) | memory[CH_ADDR_LO(ch)];
@@ -282,22 +327,52 @@ void spu_callback(void *userdata, uint8_t *stream, int len) {
 
             uint32_t target_sample_idx = (ch_sample_cursor[ch] >> 16);
 
+            // Playhead End Boundary Checks
             if (target_sample_idx >= total_samples) {
                 if (looping) {
-                    ch_sample_cursor[ch] = 0;
+                    uint32_t l_start = ch_loop_start_frame[ch];
+                    uint32_t l_end   = ch_loop_end_frame[ch];
+
+                    if (l_end > l_start && l_end <= total_samples) {
+                        ch_sample_cursor[ch] = l_start << 16;
+                        target_sample_idx = l_start;
+                    } else {
+                        ch_sample_cursor[ch] = 0;
+                        target_sample_idx = 0;
+                    }
+
                     if (status == 2) {
                         ch_brr_p1[ch] = 0;
                         ch_brr_p2[ch] = 0;
                         ch_current_block[ch] = -1;
                     }
-                    target_sample_idx = 0;
-                } else {
-                    memory[CH_STATUS(ch)] = 0; 
-                    continue;
+                } else { 
+                    // No hardware loop checked -> naturally pass off to ADSR Release envelope
+                    if (ch_adsr_state[ch] != ADSR_RELEASE && ch_adsr_state[ch] != ADSR_IDLE) {
+                        ch_adsr_state[ch] = ADSR_RELEASE;
+                    }
+                    if (ch_adsr_state[ch] == ADSR_IDLE) {
+                        memory[CH_STATUS(ch)] = 0; 
+                        continue;
+                    }
                 }
             }
             
-            // unnessacary but i wanted to give all the joy of streaming wav files ;)
+            /* ─── OPTIMIZED INTEGER SOFTWARE GATE RAMP ─── */
+            uint32_t active_vol = vol;
+            if (!looping) {
+                if (target_sample_idx >= total_samples) {
+                    // FIX: Force absolute silence if the playhead went past the end 
+                    // while the ADSR Release envelope is still ramping down.
+                    active_vol = 0; 
+                } else {
+                    uint32_t remaining = total_samples - target_sample_idx;
+                    if (remaining <= GATE_RAMP_SAMPLES && total_samples > GATE_RAMP_SAMPLES) {
+                        active_vol = (vol * remaining) / GATE_RAMP_SAMPLES;
+                    }
+                }
+            }
+            
             uint8_t half = (target_sample_idx < (total_samples >> 1)) ? 0 : 1;
             memory[CH_BUF_HALF(ch)] = half;
 
@@ -328,25 +403,50 @@ void spu_callback(void *userdata, uint8_t *stream, int len) {
                 signed_sample = (int32_t)(raw_brr_pcm >> 8);
             }
 
-            /* ─── OPTIMIZED INTEGER SOFTWARE GATE RAMP ─── */
-            uint32_t active_vol = vol;
-            if (!looping) {
-                uint32_t remaining = total_samples - target_sample_idx;
-                if (remaining <= GATE_RAMP_SAMPLES && total_samples > GATE_RAMP_SAMPLES) {
-                    active_vol = (vol * remaining) / GATE_RAMP_SAMPLES;
-                }
+            // ─── HARDWARE ENVELOPE AM PLITUDE STEP STATE MACHINE ───
+            switch (ch_adsr_state[ch]) {
+                case ADSR_IDLE:
+                    ch_adsr_volume[ch] = 0;
+                    break;
+                case ADSR_ATTACK:
+                    ch_adsr_volume[ch] += ch_adsr_attack[ch];
+                    if (ch_adsr_volume[ch] >= 65536) {
+                        ch_adsr_volume[ch] = 65536;
+                        ch_adsr_state[ch] = ADSR_DECAY;
+                    }
+                    break;
+                case ADSR_DECAY:
+                    ch_adsr_volume[ch] -= ch_adsr_decay[ch];
+                    if (ch_adsr_volume[ch] <= ch_adsr_sustain[ch]) {
+                        ch_adsr_volume[ch] = ch_adsr_sustain[ch];
+                        ch_adsr_state[ch] = ADSR_SUSTAIN;
+                    }
+                    break;
+                case ADSR_SUSTAIN:
+                    ch_adsr_volume[ch] = ch_adsr_sustain[ch];
+                    break;
+                case ADSR_RELEASE:
+                    ch_adsr_volume[ch] -= ch_adsr_release[ch];
+                    if (ch_adsr_volume[ch] <= 0) {
+                        ch_adsr_volume[ch] = 0;
+                        ch_adsr_state[ch] = ADSR_IDLE;
+                        memory[CH_STATUS(ch)] = 0; // Cut voice execution entirely
+                    }
+                    break;
             }
 
-            signed_sample = (signed_sample * (int32_t)active_vol) / 255;
+            if (ch_adsr_state[ch] == ADSR_IDLE) continue;
+            
+            // 16-bit ADSR volume blending logic
+            uint32_t envelope_scale = (ch_adsr_volume[ch] * active_vol) / 65536;
+            signed_sample = (signed_sample * (int32_t)envelope_scale) / 255;
             accum += signed_sample;
 
-            // Increment the playhead step counter matching your precise pitch rule
             ch_sample_cursor[ch] += (pitch << 9);
         }
 
-        // Apply global background tracking master attenuation if module execution is running
         if (tracker_enabled == 1) {
-            accum = (accum * (int32_t)memory[ADDR_TRACKER_VOLUME]) / 255;
+            accum = (accum * (int32_t)memory[TRACKER_VOLUME]) / 255;
         }
 
         int32_t mixed_output = 128 + accum;
@@ -355,11 +455,9 @@ void spu_callback(void *userdata, uint8_t *stream, int len) {
 
         stream[i] = (uint8_t)mixed_output;
         
-        // unnessacary too but its for visualizers
         static uint8_t viz_write_ptr = 0;
         memory[ADDR_AUDIO + 0x40 + viz_write_ptr] = (uint8_t)mixed_output;
         viz_write_ptr = (viz_write_ptr + 1) % 128;
-    
     }
 }
 
@@ -379,8 +477,7 @@ void spu_init(void) {
     SDL_PauseAudio(0); 
 }
 
-// the ENTIRE hardware tracker is a WIP, mainly since i dont have a tracker ready for the format
-void spu_play_module(const char* filename, float volume) {
+void spu_start_module(const char* filename, float volume) {
     FILE* f = fopen(filename, "rb");
     if (!f) return;
 
@@ -406,22 +503,38 @@ void spu_play_module(const char* filename, float volume) {
     c_fade_target = volume;
     c_fade_step_per_chunk = 0.0f;
 
-    memory[ADDR_TRACKER_VOLUME] = (uint8_t)(volume * 255.0f);
-    memory[ADDR_TRACKER_ENABLED] = 1;
+    memory[TRACKER_VOLUME] = (uint8_t)(volume * 255.0f);
 }
 
-// does NOT work
+static uint8_t ch_paused_status[4] = {0, 0, 0, 0};
+static bool    tracker_paused = false;
+
 void spu_pause_module(void) {
-    memory[ADDR_TRACKER_ENABLED] = 0;
+    if (tracker_paused || memory[TRACKER_ENABLED] == 0) return;
+
+    for (int ch = 0; ch < 4; ch++) {
+        ch_paused_status[ch] = memory[CH_STATUS(ch)];  
+        memory[CH_STATUS(ch)] = 0;                       
+    }
+    memory[TRACKER_ENABLED] = 0;
+    tracker_paused = true;
 }
 
-// untested
+void spu_play_module(void) {
+    if (!tracker_paused) return;
+    for (int ch = 0; ch < 4; ch++) {
+        memory[CH_STATUS(ch)] = ch_paused_status[ch];   
+    }
+    memory[TRACKER_ENABLED] = 1;
+    tracker_paused = false;
+}
+
 void spu_fade_module(float target, int duration_frames) {
     c_fade_target = target;
     if (duration_frames <= 0) {
         c_tracker_volume = target;
         c_fade_step_per_chunk = 0.0f;
-        memory[ADDR_TRACKER_VOLUME] = (uint8_t)(target * 255.0f);
+        memory[TRACKER_VOLUME] = (uint8_t)(target * 255.0f);
     } else {
         float total_chunks = (float)duration_frames * (86.1328f / 60.0f);
         c_fade_step_per_chunk = (target - c_tracker_volume) / total_chunks;
@@ -429,13 +542,14 @@ void spu_fade_module(float target, int duration_frames) {
 }
 
 void spu_stop_module(void) {
-    memory[ADDR_TRACKER_ENABLED] = 0;
+    memory[TRACKER_ENABLED] = 0;
     for (int ch = 0; ch < 4; ch++) {
         memory[CH_STATUS(ch)] = 0;
         ch_sample_cursor[ch] = 0;
+        ch_adsr_state[ch] = ADSR_IDLE;
+        ch_adsr_volume[ch] = 0;
     }
     current_order = 0;
     current_row = 0;
     current_tick = 0;
 }
-

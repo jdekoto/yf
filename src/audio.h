@@ -17,8 +17,8 @@
 
 void spu_callback(void *userdata, uint8_t *stream, int len);
 void spu_init();
-int  spu_feedtracker(const char* filename);
-void spu_play_module(const char* filename, float volume);
+void spu_start_module(const char* filename, float volume);
+void spu_play_module(void);
 void spu_pause_module(void);
 void spu_fade_module(float target, int duration_frames);
 void spu_stop_module(void);

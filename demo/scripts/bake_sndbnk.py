@@ -1,12 +1,13 @@
+# bake_sndbnk.py
 import os
 import sys
 import wave
 import struct
 
 MAX_SOUND_SLOTS = 64
-SOUNDBANK_SIZE = 64000  # Exactly 64KB
-HEADER_ENTRY_SIZE = 7   # uint16, uint16, uint16, uint8
-TOTAL_HEADER_SIZE = MAX_SOUND_SLOTS * HEADER_ENTRY_SIZE  # 448 bytes
+SOUNDBANK_SIZE = 65536  # Exactly 64KB (Can be increased now that offsets are 32-bit)
+HEADER_ENTRY_SIZE = 12   # uint32, uint32, uint16, uint8, uint8
+TOTAL_HEADER_SIZE = MAX_SOUND_SLOTS * HEADER_ENTRY_SIZE  # 64 * 12 = 768 bytes
 
 def load_wav_samples(wav_path):
     """Reads a WAV file and returns a list of signed 16-bit linear PCM samples."""
@@ -36,11 +37,9 @@ def load_wav_samples(wav_path):
 
 def encode_brr_block(chunk):
     """Compresses a 16-sample chunk of 16-bit signed PCM into a 9-byte BRR block."""
-    # Ensure chunk is exactly 16 samples long by zero-padding if necessary
     if len(chunk) < 16:
         chunk = chunk + [0] * (16 - len(chunk))
         
-    # Find the optimum shift value (0 to 12) where all 4-bit steps fit into [-8, 7]
     best_shift = 12
     for shift in range(13):
         valid = True
@@ -57,22 +56,18 @@ def encode_brr_block(chunk):
             best_shift = shift
             break
 
-    # Build the 1-byte BRR block header (Shift count, Filter 0, No loop flags)
     header_byte = (best_shift << 4) | (0 << 2)
     block_bytes = bytearray([header_byte])
     
-    # Pack 16 samples into 8 bytes as pairs of 4-bit signed nibbles
     for i in range(0, 16, 2):
         s0, s1 = chunk[i], chunk[i+1]
         
         step0 = (s0 << 1) if best_shift == 0 else (s0 >> (best_shift - 1))
         step1 = (s1 << 1) if best_shift == 0 else (s1 >> (best_shift - 1))
         
-        # Guard clamps
         step0 = max(-8, min(7, step0))
         step1 = max(-8, min(7, step1))
         
-        # Convert signed values to 4-bit unsigned representations for bit-packing
         nibble0 = step0 & 0x0F
         nibble1 = step1 & 0x0F
         
@@ -82,10 +77,10 @@ def encode_brr_block(chunk):
     return bytes(block_bytes)
 
 def pack_brr_soundbank(source_dir, output_bin):
-    print("--- Yellow Feather Core BRR Soundbank Builder ---")
+    print("--- Yellow Feather Core BRR Soundbank Builder (12-Byte Header Version) ---")
     
-    # [offset, length_in_blocks, loop_point, flags]
-    registry = [[0, 0, 0, 0] for _ in range(MAX_SOUND_SLOTS)]
+    # [offset (U32), length (U32), loop_start (U16), volume (U8), flags (U8)]
+    registry = [[0, 0, 0, 0, 0] for _ in range(MAX_SOUND_SLOTS)]
     payload_accumulator = bytearray()
     current_write_offset = TOTAL_HEADER_SIZE
 
@@ -101,7 +96,6 @@ def pack_brr_soundbank(source_dir, output_bin):
             if not pcm_samples:
                 continue
                 
-            # Compress the linear PCM stream into sequential 9-byte BRR blocks
             brr_data = bytearray()
             for i in range(0, len(pcm_samples), 16):
                 sample_chunk = pcm_samples[i : i + 16]
@@ -109,17 +103,17 @@ def pack_brr_soundbank(source_dir, output_bin):
                 
             total_blocks = len(brr_data) // 9
 
-            # Check if this addition breaches the 64KB soundbank constraint
             if current_write_offset + len(brr_data) > SOUNDBANK_SIZE:
                 print(f"⚠️ ERROR: Soundbank full! Out of space to pack '{filename}'")
                 return False
 
-            # Assign header configuration parameters
+            # Assign expanded 12-byte header configuration parameters
             registry[slot_id] = [
-                current_write_offset,  # Offset relative to file origin
-                total_blocks,          # SPU expects total number of blocks for BRR sizing
-                0,                     # Loop marker block index offset
-                2                      # Flag value 2 = Active Hardware BRR Mode
+                current_write_offset,  # Offset (uint32_t)
+                total_blocks,          # SPU total blocks (uint32_t)
+                0,                     # Loop marker block offset (uint16_t)
+                255,                   # Default instrument volume (uint8_t)
+                2                      # Flag value 2 = Active Hardware BRR Mode (uint8_t)
             ]
 
             payload_accumulator.extend(brr_data)
@@ -133,14 +127,14 @@ def pack_brr_soundbank(source_dir, output_bin):
 
     # --- SERIALIZE BINARY IMAGE ---
     with open(output_bin, "wb") as f:
-        # 1. Write the 448-byte lookup index table matching struct pack specs
+        # 1. Write the 768-byte lookup index table matching struct pack specs (<IIHBB)
         for entry in registry:
-            f.write(struct.pack("<HHHB", entry[0], entry[1], entry[2], entry[3]))
+            f.write(struct.pack("<IIHBB", entry[0], entry[1], entry[2], entry[3], entry[4]))
 
         # 2. Write compressed payloads
         f.write(payload_accumulator)
 
-        # 3. Clean trailing pad straight to 64KB boundary with mid-point U8 silence (128)
+        # 3. Clean trailing pad straight to boundary with mid-point U8 silence (128)
         current_file_size = f.tell()
         padding_needed = SOUNDBANK_SIZE - current_file_size
         if padding_needed > 0:
@@ -150,6 +144,10 @@ def pack_brr_soundbank(source_dir, output_bin):
     return True
 
 if __name__ == "__main__":
+    if len(sys.argv) < 3:
+        print("Usage: python bake_sndbnk.py <source_dir> <output_bin>")
+        sys.exit(1)
+        
     SOURCE_DIRECTORY = sys.argv[1]
     OUTPUT_FILE = sys.argv[2]
 

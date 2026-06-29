@@ -2,8 +2,8 @@
 audio = {}
 
 -- overall background music that sucks cuz we dont have a tracker yet but wait till we do
-mus = module("assets/arp.cm", 0.8) 
--- mus.play()
+--mus = module("assets/arp.cm", 0.8) 
+--mus.play()
 
 function audio.tick()
     clear(0)
@@ -29,7 +29,7 @@ function audio.tick()
     text("press enter to play sfx", 4, 87, 13)
 	
     if btnp(8) then sound(2, 128) end
-    --if btnp(4) then mus.pause() end
-    --if btnp(5) then mus.play() end
+--    if btnp(4) then mus.pause() end
+--    if btnp(5) then mus.play() end
 	
 end

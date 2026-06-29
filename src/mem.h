@@ -8,6 +8,7 @@
 
 #define ADDR_FB     0x00000u   /* 128×96 = (24KB)        */
 #define ADDR_PAL    0x06000u   /* 512 slots = (1KB)      */
+#define ADDR_REGS   0x06400u   /* base for the registers */
 #define ADDR_INPUT  0x06440u   /* input state            */
 #define ADDR_AUDIO  0x06450u   /* audio registers        */
 #define ADDR_FONT   0x06600u   /* system font            */
@@ -32,9 +33,19 @@
 #define CH_VOLUME(ch)   (ADDR_AUDIO + ((ch) * 10) + 7) // 0 to 255
 #define CH_PITCH(ch)    (ADDR_AUDIO + ((ch) * 10) + 8) // 256 = 1.0 speed
 #define CH_BUF_HALF(ch) (ADDR_AUDIO + ((ch) * 10) + 9) // Exposes half the buffer
-#define ADDR_TRACKER_ENABLED (ADDR_AUDIO + 0x42)  // 1-byte toggle (0 = Off, 1 = On)
-#define ADDR_TRACKER_VOLUME  (ADDR_AUDIO + 0x43)  // 1-byte master gain (0 to 255)
-#define ADDR_CURBNK 0x06400u // switches active bank
+#define TRACKER_ENABLED (ADDR_AUDIO + 0x42)            // 1-byte toggle (0 = Off, 1 = On)
+#define TRACKER_VOLUME  (ADDR_AUDIO + 0x43)            // 1-byte master gain (0 to 255)
+
+#define REG_CAM_X       (ADDR_REGS + 0)  /* Camera X Offset (16-bit signed, 2 bytes) */
+#define REG_CAM_Y       (ADDR_REGS + 2)  /* Camera Y Offset (16-bit signed, 2 bytes) */
+
+#define REG_CLIP_EN     (ADDR_REGS + 4)  /* Clipping Engine Toggle (8-bit, 1 byte) */
+#define REG_CLIP_X0     (ADDR_REGS + 5)  /* Clip Rect Left (8-bit, 1 byte) */
+#define REG_CLIP_Y0     (ADDR_REGS + 6)  /* Clip Rect Top (8-bit, 1 byte) */
+#define REG_CLIP_X1     (ADDR_REGS + 7)  /* Clip Rect Right (8-bit, 1 byte) */
+#define REG_CLIP_Y1     (ADDR_REGS + 8)  /* Clip Rect Bottom (8-bit, 1 byte) */
+
+#define REG_BANK_SW     (ADDR_REGS + 9)  /* Sprite/Tile Bank Control Switcher */
 
 extern uint8_t memory[RAM_SIZE];
 
