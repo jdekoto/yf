@@ -8,6 +8,8 @@ function hello.tick()
 		-- for each index, render the pixel at y = 38 and x = 32 but offset it by its own index
 		pixel(32 + index, 38, index)
 	end
+	
+	poke2((0x00000 + (24 * 128 + 13) * 2), 0xFFFF)
 	-- renders the text on the screen. "\n" prints it to the second line
 	text("hello!\nwelcome to yf", 32, 43)
 end

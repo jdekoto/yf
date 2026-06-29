@@ -1,7 +1,7 @@
 maptest = {}
 
-reload("assets/map/test.map", 0x20400)
-reload("assets/sprites/tiles.raw", 0x08900)
+reload("assets/map/test.map", 0x1E900)
+reload("assets/sprites/tiles.raw", 0x0A900)
 
 cx = 0
 cy = 0

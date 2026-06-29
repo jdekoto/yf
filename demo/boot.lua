@@ -7,14 +7,17 @@ require("frame")
 require("flashrom")
 require("map")
 
--- load the cassette's sndbnk into its dedicated ram block
-reload("assets/sfx/soundbank.bin", 0x10400)
+-- main initalization function
+function _boot()
+	-- load the cassette's sndbnk into its dedicated ram block
+	reload("assets/sfx/soundbank.bin", 0x0E900)
 
--- based on ANTIRUINS' scene example, make a table of states for each demo
-states = { "hello", "anim", "map", "audio", "frame", "flashrom", "dots3d" }
--- or current state, for right now a meaningless number. but it will set the current
--- scene by referring to the index of the state table
-cState = 1
+	-- based on ANTIRUINS' scene example, make a table of states for each demo
+	states = { "hello", "anim", "map", "audio", "frame", "flashrom", "dots3d" }
+	-- or current state, for right now a meaningless number. but it will set the current
+	-- scene by referring to the index of the state table
+	cState = 1
+end
 
 -- main tick loop
 function _tick()

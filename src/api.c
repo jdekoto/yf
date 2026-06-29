@@ -378,9 +378,9 @@ static int l_clip(lua_State *L) {
 }
 
 // Track spreadsheet dimensions directly inside the native runtime layer
-static uint32_t bank_addresses[] = { 0x06900, 0x08900 };
+static uint32_t bank_addresses[] = { 0x06900, 0x0A900 };
 static int bank_widths[]         = { 128, 128 };
-static int bank_heights[]        = { 64, 64 };
+static int bank_heights[]        = { 128, 128 };
 
 /* sprite(id, x, y, [w], [h], [flip_x], [flip_y]) */
 int l_sprite(lua_State *L) {
@@ -585,7 +585,7 @@ static int l_btn(lua_State *L) {
     int absolute_bit = btn_idx;
 
     // Read the live byte block where this bit resides
-    uint32_t live_mask = peek4(0x06440u);
+    uint32_t live_mask = peek4(ADDR_INPUT);
 
     lua_pushboolean(L, (live_mask & (1 << absolute_bit)) != 0);
     return 1;
@@ -597,8 +597,8 @@ static int l_btnp(lua_State *L) {
 
     int absolute_bit = btn_idx;
 
-    uint32_t live_mask = peek4(0x06440u);
-    uint32_t prev_mask = peek4(0x06444u);
+    uint32_t live_mask = peek4(ADDR_INPUT);
+    uint32_t prev_mask = peek4(ADDR_INPUT + 4);
 
     // Button is pressed now, but WAS NOT pressed on the previous frame loop
     bool pressed = ((live_mask & (1 << absolute_bit)) != 0) && 

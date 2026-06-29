@@ -1,9 +1,11 @@
 
 yellowfeather manual.
 
-introduction:
-yo.
+===============================================================
+0. introduction
+===============================================================
 
+yo.
 yellowfeather, or yf (pronounced yif) is a fantasy console taking massive inspiration from the 16-bit era. 
 in this manual, i hope to teach you guys the ins and outs of this fantasy console; which includes the API, cassette formatting, appending, etc. 
 
@@ -15,11 +17,12 @@ table of contents:
 		1.4 registers
 	2. a deep dive into each aspect
 		2.1 cpu
-		2.2 memory / framebuffer
-		2.3 controller input
-		2.4 apu
-		2.5 cassette format + familiar formats
-		2.6 flashrom handling
+		2.2 memory
+		2.3 framebuffer
+		2.4 controller input
+		2.5 apu
+		2.6 cassette roms + familiar formats
+		2.7 flashrom handling
 	3. api
 		3.1 memory
 		3.2 graphics
@@ -29,8 +32,6 @@ table of contents:
 		3.6 apu
 		3.7 flashrom
 	4. a bit of dabbling (TODO: come up with examples to make the most out of this thing)
-
-table of contents
 
 =================================================================
 1. overview
@@ -46,70 +47,69 @@ specs:
   - Unlimited Flashrom for saving
 
 diagram:
-    ╭────╮                    ╭────╮
-    ╰─06─╯────────────────────╰─07─╯
-    │╭────────────────────────────╮│
-    ││                            ││
-    ││                            ││
-    ││                            ││
-    ││          128*96            ││
-    ││                            ││
-    ││                            ││
-    ││                            ││
-    │╰────────────────────────────╯│
-    │     ┌2┐               ┌5┐    │
-    │   ┌0┼─┼1┐          ┌4┐└─┘    │
-    │   └─┼─┼─┘  ┌────┐  └─┘       │
-    │     └3┘    └─08─┘            │
-    ╰──────────────────────────────╯
-       (for p2, index starts at 9)
+	╭────╮                    ╭────╮
+	╰─06─╯────────────────────╰─07─╯
+	│╭────────────────────────────╮│
+	││                            ││
+	││                            ││
+	││                            ││
+	││          128*96            ││
+	││                            ││
+	││                            ││
+	││                            ││
+	│╰────────────────────────────╯│
+	│     ┌2┐               ┌5┐    │
+	│   ┌0┼─┼1┐          ┌4┐└─┘    │
+	│   └─┼─┼─┘  ┌────┐  └─┘       │
+	│     └3┘    └─08─┘            │
+	╰──────────────────────────────╯
+	   (for p2, index starts at 9)
 
 
 memory map:
- 0x00000u-0x05FFFu  VRAM Framebuffer (128x96, 24KB)
- 0x06000u-0x06400u  Palette RAM (512 slots, 1KB)
- 0x06440u-0x0644Fu  Input State Registers
- 0x06450u-0x065FFu  SPU Audio Registers
- 0x06600u-0x068FFu  BIOS Font (Packed 1-bit, 5x5 Matrix)
- 0x06900u-0x0A8FFu  Sprite Bank 0 & 1 (8KB each)
- 0x10400u-0x203FFu  SPU Soundbank RAM (Baked BRR Payloads, 64KB)
- 0x20400u-0x403FFu  Tilemap Data Block (128KB)
- 0x40400u-0x7DFFFu  Cartridge RAM / Sequencer Stream (~256KB)
- 0x7E000u-0x7FFFFu  SRAM Flash Save RAM (8KB)
+	0x00000u-0x05FFFu  	VRAM Framebuffer (128x96, 24KB)
+	0x06000u-0x06400u  	Palette RAM (512 slots, 1KB)
+	0x06440u-0x0644Fu  	Input State Registers
+	0x06450u-0x065FFu  	SPU Audio Registers
+	0x06600u-0x068FFu  	BIOS Font (Packed 1-bit, 5x5 Matrix)
+	0x06900u-0x0E8FFu  	Sprite Bank 0 & 1 (16KB each)
+	0x0E900u-0x1E8FFu  	SPU Soundbank RAM (64KB)
+	0x1E900u-0x3E8FFu  	Tilemap Data Block (128KB)
+	0x3E900u-0x7DFFFu 	Cartridge RAM (~256KB)
+	0x7E000u-0x7FFFFu  	SRAM Flash Save RAM (8KB)
  
 i/o map:
+	hardware camera / clip + bank switcher:
+	0x06400u 		    Camera X position (16-bit)
+	0x06402u				Camera Y position (16-bit)
+	0x06404u				Clip Enable 
+	0x06405u 			Clip X0
+	0x06406u 			Clip Y0
+	0x06407u 			Clip X1
+	0x06408u 			Clip Y1
+	0x06409u 			Active Sprite Bank
 
- hardware camera / clip + bank switcher:
- 0x06400u 		    Camera X position (16-bit)
- 0x06402u			Camera Y position (16-bit)
- 0x06404u			Clip Enable 
- 0x06405u 			Clip X0
- 0x06406u 			Clip Y0
- 0x06407u 			Clip X1
- 0x06408u 			Clip Y1
- 0x06409u 			Active Sprite Bank
- 
- apu registers:
- 0x06450u + (ch*10) 	Channel's Status
- 0x06451u + (ch*10)	Channel's Trigger
- 0x06452u + (ch*10)	Channel's Loop Boolean
- 0x06453u + (ch*10) 	Channel's Address (LO)
- 0x06454u + (ch*10) 	Channel's Address (HI)
- 0x06455u + (ch*10) 	Channel's Length (LO)
- 0x06456u + (ch*10) 	Channel's Length (HI)
- 0x06457u + (ch*10) 	Channel's Volume
- 0x06458u + (ch*10) 	Channel's Pitch
- 0x06459u + (ch*10)	Channel's Buffer (only half is exposed though)
- 0x06492u			Hardware Tracker Enable
- 0x06493u			Hardware Tracker Volume
- 0x06498u			Hardware Tracker Song Order Index
- 0x06499u			Hardware Tracker Song Row Index
- 0x0649Au			Hardware Tracker Song Pattern Index
- 0x06490u-0x0650Fu 	Hardware Oscilloscope Ring Buffer
+	apu registers:
+	0x06450u + (ch*10) 	Channel's Status
+	0x06451u + (ch*10)	Channel's Trigger
+	0x06452u + (ch*10)	Channel's Loop Boolean
+	0x06453u + (ch*10) 	Channel's Address (LO)
+	0x06454u + (ch*10) 	Channel's Address (HI)
+	0x06455u + (ch*10) 	Channel's Length (LO)
+	0x06456u + (ch*10) 	Channel's Length (HI)
+	0x06457u + (ch*10) 	Channel's Volume
+	0x06458u + (ch*10) 	Channel's Pitch
+	0x06459u + (ch*10)	Channel's Buffer (only half is exposed though)
+	0x06492u				Hardware Tracker Enable
+	0x06493u				Hardware Tracker Volume
+	0x06498u				Hardware Tracker Song Order Index
+	0x06499u				Hardware Tracker Song Row Index
+	0x0649Au				Hardware Tracker Song Pattern Index
+	0x06490u-0x0650Fu 	Hardware Oscilloscope Ring Buffer
 
- input registers:
- 0x06440u-0x06443u	Current Input Mask (32 bit)
-	 Byte 0 [0x06440u] - Player 1 Low Byte Configuration
+	input registers:
+	0x06440u-0x06443u	Current Input Mask (32 bit)
+		Byte 0 [0x06440u] - 	Player 1 Low Byte Configuration
 		Bit 0   DPAD_LEFT
 		Bit 1   DPAD_RIGHT
 		Bit 2   DPAD_UP
@@ -119,7 +119,7 @@ i/o map:
 		Bit 6   BUTTON_C
 		Bit 7   BUTTON_D
 
-	 Byte 1 [0x06441u] - Player 1 / Player 2 Split Matrix
+		Byte 1 [0x06441u] - 	Player 1 / Player 2 Split Matrix
 		Bit 0   BUTTON_START
 		Bit 1   P2_DPAD_LEFT
 		Bit 2   P2_DPAD_RIGHT
@@ -129,12 +129,66 @@ i/o map:
 		Bit 6   P2_BUTTON_B
 		Bit 7   P2_BUTTON_C
 
-	 Byte 2 [0x06442u] - Player 2 High Byte Configuration
+		Byte 2 [0x06442u] - 	Player 2 High Byte Configuration
 		Bit 0   P2_BUTTON_D
 		Bit 1   P2_BUTTON_START
 		Bit 2-7 Reserved / Always Return 0
 
-	 Byte 3 [0x06443u]
+		Byte 3 [0x06443u]
 		Bit 0-7 Unused
- 0x06444u-0x06447u	Previous Input Mask
-  	 Mirrors the Current Input Mask, but is used for delta-state triggers
+	
+	0x06444u-0x06447u	Previous Input Mask (32-bit)
+		Mirrors the Current Input Mask, but is used for delta-state triggers
+
+==========================================================================  	 
+2. a deep dive into each aspect
+==========================================================================
+
+cpu:
+	the console includes the Lua 5.4 VM cpu with a 6 MIPS limit and a few more opcodes.
+	it's locked at 60hz and comes with fault protection, halting the execution if it spots
+	any error in the code.
+	
+	the cpu is the only way you can manipulate the memory, with it providing raw block 
+	operations like peek, poke, memset, memcpy, and reload.
+	
+	the virtual execution thread does not run a continuous procedural top-down line 
+	of code. instead, the cpu calls two vectors during execution, one on startup and one on every frame. 
+	
+	the one on startup is called _boot(). while not needed, it can be used to intitalize variables
+	and run startup functions
+	
+	the one called every frame is called _tick(). this is crucial and is triggered 60 times a second. 
+	it can read input registers, handle game loops, moving sprites around, and many more.
+	
+	dev's diary: any code not within these two vectors somehow will not run, meaning any variables or
+	functions must be nested within or used by the _tick() vector in some way, shape, or form. and leaving 
+	out the _tick() vector in a cassette will result and a infinite boot state. causing a softlock.
+	
+memory:
+	the console maps out a continuous 512 KB linear physical memory block ranging from 0x00000u to 0x7FFFFu.
+	literally everything is memory mapped, meaning graphics pipelines, audio units, and registers react 
+	purely to raw bus reads and writes.
+	
+	lets take a look at it again and break down is usually inside each block:
+		0x00000u-0x05FFFu  	VRAM Framebuffer (128x96, 24KB)
+		0x06000u-0x06400u  	Palette RAM (512 slots, 1KB)
+		0x06440u-0x0644Fu  	Input State Registers
+		0x06450u-0x065FFu  	SPU Audio Registers
+		0x06600u-0x068FFu  	BIOS Font (Packed 1-bit, 5x5 Matrix)
+		0x06900u-0x0E8FFu  	Sprite Bank 0 & 1 (16KB each)
+		0x0E900u-0x1E8FFu  	SPU Soundbank RAM (64KB)
+		0x1E900u-0x3E8FFu  	Tilemap Data Block (128KB)
+		0x3E900u-0x7DFFFu 	Cartridge RAM (~256KB)
+		0x7E000u-0x7FFFFu  	SRAM Flash Save RAM (8KB)
+		
+	the framebuffer is what gets outputted to the screen. each pixel has 2 bytes and that has the raw rgb value.
+	so what would that look like in practice would be:
+		pixel(13, 24, 0xFFFF) -- prints a white pixel to (13, 24)
+		-- or --
+		poke2((0x00000 + (24 * 128 + 13) * 2), 0xFFFF) -- pokes the 16 bit value to the framebuffer and offsets 
+		it to (13, 24) with 128 being the width of the screen.
+	these both lead to a white pixel at that exact spot! (we'll get more in depth with the functions in 3.1/3.2)
+	
+	s
+	
