@@ -82,9 +82,9 @@ function flashrom.tick()
 	circ(64, 44, math.floor(r), 15)
 	
 	-- text
-	text("highscore:".. highscore, 4, 4, 13)
-	text("press S to save", 4, 11, 13)
-	text("press A to score", 4, 80, 13)
-	text("score:" .. score, 4, 87, 13)
+	text("highscore:".. highscore, 4, 4)
+	text("press S to save", 4, 11)
+	text("press A to score", 4, 80)
+	text("score:" .. score, 4, 87)
 
 end

@@ -42,6 +42,6 @@ function anim.tick()
 	sprite(f, 60, py)
 
 	-- draw text. we can convert our velocity variable to a string with string.format
-	text(string.format("dy: %.2f", dy), 4, 4, 13)
-	text("press A to jump", 4, 87, 13)
+	text(string.format("dy: %.2f", dy), 4, 4)
+	text("press A to jump", 4, 87)
 end

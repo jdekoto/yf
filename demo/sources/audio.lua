@@ -25,8 +25,8 @@ function audio.tick()
         
         pixel(x, pixel_y, wave_color)
     end
-    text("press A/S to pause/play", 4, 80, 13)
-    text("press enter to play sfx", 4, 87, 13)
+    text("press A/S to pause/play", 4, 80)
+    text("press enter to play sfx", 4, 87)
 	
     if btnp(8) then sound(2, 128) end
 --    if btnp(4) then mus.pause() end

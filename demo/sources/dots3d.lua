@@ -101,5 +101,5 @@ function dots3d.tick()
 		end
 	end
 	
-	text("a zep demo", 4, 87, 13)
+	text("a zep demo", 4, 87)
 end

@@ -9,5 +9,5 @@ function hello.tick()
 		pixel(32 + index, 38, index)
 	end
 	-- renders the text on the screen. "\n" prints it to the second line
-	text("hello!\nwelcome to yf", 32, 43, 13)
+	text("hello!\nwelcome to yf", 32, 43)
 end

@@ -63,6 +63,6 @@ function frame.tick()
 	-- draw frame outside out of clip frame
 	wireframe(26, 16, 75, 61, 15)	
 	-- since its a modern art piece
-	text("peekaboo!", 26, 79, 13)
-	text("clip demo", 26, 85, 13)
+	text("peekaboo!", 26, 79)
+	text("clip demo", 26, 85)
 end

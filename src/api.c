@@ -462,8 +462,8 @@ static int l_text(lua_State *L) {
     const char *str = luaL_checkstring(L, 1);
     int start_x     = (int)luaL_checknumber(L, 2);
     int y           = (int)luaL_checknumber(L, 3);
-    /* Default to pure white color (0xFFFF) if no argument is provided */
-    uint16_t color  = (uint16_t)luaL_optinteger(L, 4, 0xFFFF);
+    /* Default to palette's white color (0xEF7D) if no argument is provided */
+    uint16_t color  = (uint16_t)luaL_optinteger(L, 4, 0xEF7D);
 
     int x = start_x;
 
