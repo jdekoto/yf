@@ -579,36 +579,32 @@ static int l_map(lua_State *L) {
 
 /* btn(n) → bool */
 static int l_btn(lua_State *L) {
-    int n = (int)luaL_checknumber(L, 1);
-    if (n < 0 || n > 31) { lua_pushboolean(L, false); return 1; }
+    int btn_idx = (int)luaL_checkinteger(L, 1);
 
-    // Collate all 4 bytes into a single 32-bit evaluation integer
-    uint32_t cur = peek(ADDR_INPUT) | 
-                  (peek(ADDR_INPUT + 1) << 8) | 
-                  (peek(ADDR_INPUT + 2) << 16) | 
-                  (peek(ADDR_INPUT + 3) << 24);
+    // Combine player offset to index the global 32-bit block
+    int absolute_bit = btn_idx;
 
-    lua_pushboolean(L, (cur >> n) & 1);
+    // Read the live byte block where this bit resides
+    uint32_t live_mask = peek4(0x06440u);
+
+    lua_pushboolean(L, (live_mask & (1 << absolute_bit)) != 0);
     return 1;
 }
 
 /* btnp(n) → bool */
 static int l_btnp(lua_State *L) {
-    int n = (int)luaL_checknumber(L, 1);
-    if (n < 0 || n > 31) { lua_pushboolean(L, false); return 1; }
+    int btn_idx = (int)luaL_checkinteger(L, 1);
 
-    uint32_t cur = peek(ADDR_INPUT) | 
-                  (peek(ADDR_INPUT + 1) << 8) | 
-                  (peek(ADDR_INPUT + 2) << 16) | 
-                  (peek(ADDR_INPUT + 3) << 24);
+    int absolute_bit = btn_idx;
 
-    // Read previous frame history from the upgraded offsets (bytes +4 to +7)
-    uint32_t prev = peek(ADDR_INPUT + 4) | 
-                   (peek(ADDR_INPUT + 5) << 8) | 
-                   (peek(ADDR_INPUT + 6) << 16) | 
-                   (peek(ADDR_INPUT + 7) << 24);
+    uint32_t live_mask = peek4(0x06440u);
+    uint32_t prev_mask = peek4(0x06444u);
 
-    lua_pushboolean(L, ((cur >> n) & 1) && !((prev >> n) & 1));
+    // Button is pressed now, but WAS NOT pressed on the previous frame loop
+    bool pressed = ((live_mask & (1 << absolute_bit)) != 0) && 
+                   ((prev_mask & (1 << absolute_bit)) == 0);
+
+    lua_pushboolean(L, pressed);
     return 1;
 }
 

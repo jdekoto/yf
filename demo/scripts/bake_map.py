@@ -6,7 +6,7 @@ import os
 # Yellow Feather Core Engine layout constraints
 MAP_WIDTH = 512
 MAP_HEIGHT = 256
-OUTPUT_SIZE = MAP_WIDTH * MAP_HEIGHT
+OUTPUT_SIZE = 131072
 
 def compile_map(json_path, bin_path):
     if not os.path.exists(json_path):
@@ -47,10 +47,9 @@ def compile_map(json_path, bin_path):
             engine_tile_val = tile_id + 1
 
             # Keep operations within safety limits of the engine's VRAM block boundaries
-            if 0 <= tx < MAP_WIDTH and 0 <= ty < MAP_HEIGHT:
-                dest_offset = ty * MAP_WIDTH + tx
-                out_buffer[dest_offset] = engine_tile_val & 0xFF
-                tiles_written += 1
+            dest_offset = ty * MAP_WIDTH + tx
+            out_buffer[dest_offset] = engine_tile_val & 0xFF
+            tiles_written += 1
 
         print(f"  -> Layer {layer_idx} ('{layer.get('name', 'Unknown')}'): Baked {tiles_written} tiles.")
 

@@ -9,15 +9,19 @@ in this manual, i hope to teach you guys the ins and outs of this fantasy consol
 
 table of contents:
 	1. overview
-	1. the aspects
-		1.1 cpu
-		1.2 memory / framebuffer
-		1.3 controller input
-		1.4 apu
-		1.5 cassette format + familiar formats
-		1.6 flashrom handling
-	2. api
-	3. few examples
+		1.1 specs
+		1.2 diagram
+		1.3 memory map
+		1.4 registers
+	2. the aspects of programming it.
+		2.1 cpu
+		2.2 memory / framebuffer
+		2.3 controller input
+		2.4 apu
+		2.5 cassette format + familiar formats
+		2.6 flashrom handling
+	3. api
+	4. a bit of dabbling.
 
 table of contents
 
@@ -34,7 +38,7 @@ specs:
   - 16 MB cassette slot
   - Unlimited Flashrom for saving
 
-buttons:
+diagram:
     ╭────╮                    ╭────╮
     ╰─06─╯────────────────────╰─07─╯
     │╭────────────────────────────╮│
@@ -65,3 +69,30 @@ memory map:
  0x20400u-0x403FFu  Tilemap Data Block (128KB)
  0x40400u-0x7DFFFu  Cartridge RAM / Sequencer Stream (~256KB)
  0x7E000u-0x7FFFFu  SRAM Flash Save RAM (8KB)
+ 
+i/o map:
+
+ hardware camera / clip + bank switcher:
+ 0x06400u 		    Camera X position (16-bit)
+ 0x06402u			Camera Y position (16-bit)
+ 0x06404u			Clip Enable 
+ 0x06405u 			Clip X0
+ 0x06406u 			Clip Y0
+ 0x06407u 			Clip X1
+ 0x06408u 			Clip Y1
+ 0x06409u 			Active Sprite Bank
+ 
+ apu registers:
+ 0x06450u + (ch*10) 	Channel's Status
+ 0x06451u + (ch*10)	Channel's Trigger
+ 0x06452u + (ch*10)	Channel's Loop Boolean
+ 0x06453u + (ch*10) 	Channel's Address (LO)
+ 0x06454u + (ch*10) 	Channel's Address (HI)
+ 0x06455u + (ch*10) 	Channel's Length (LO)
+ 0x06456u + (ch*10) 	Channel's Length (HI)
+ 0x06457u + (ch*10) 	Channel's Volume
+ 0x06458u + (ch*10) 	Channel's Pitch
+ 0x06459u + (ch*10)	Channel's Buffer (only half is exposed though)
+ 0x06492u			Hardware Tracker Enable
+ 0x06493u			Hardware Tracker Volume
+
