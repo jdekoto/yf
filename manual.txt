@@ -95,4 +95,39 @@ i/o map:
  0x06459u + (ch*10)	Channel's Buffer (only half is exposed though)
  0x06492u			Hardware Tracker Enable
  0x06493u			Hardware Tracker Volume
+ 0x06498u			Hardware Tracker Song Order Index
+ 0x06499u			Hardware Tracker Song Row Index
+ 0x0649Au			Hardware Tracker Song Pattern Index
+ 0x06490u-0x0650Fu 	Hardware Oscilloscope Ring Buffer
 
+ input registers:
+ 0x06440u-0x06443u	Current Input Mask (32 bit)
+	 Byte 0 [0x06440u] - Player 1 Low Byte Configuration
+		Bit 0   DPAD_LEFT
+		Bit 1   DPAD_RIGHT
+		Bit 2   DPAD_UP
+		Bit 3   DPAD_DOWN
+		Bit 4   BUTTON_A
+		Bit 5   BUTTON_B
+		Bit 6   BUTTON_X
+		Bit 7   BUTTON_Y
+
+	 Byte 1 [0x06441u] - Player 1 / Player 2 Split Matrix
+		Bit 0   BUTTON_START
+		Bit 1   P2_DPAD_LEFT
+		Bit 2   P2_DPAD_RIGHT
+		Bit 3   P2_DPAD_UP
+		Bit 4   P2_DPAD_DOWN
+		Bit 5   P2_BUTTON_A
+		Bit 6   P2_BUTTON_B
+		Bit 7   P2_BUTTON_X
+
+	 Byte 2 [0x06442u] - Player 2 High Byte Configuration
+		Bit 0   P2_BUTTON_Y
+		Bit 1   P2_BUTTON_START
+		Bit 2-7 Reserved / Always Return 0
+
+	 Byte 3 [0x06443u]
+		Bit 0-7 Unused
+ 0x06444u-0x06447u	Previous Input Mask
+  	 Mirrors the Current Input Mask, but is used for delta-state triggers
