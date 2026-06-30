@@ -1055,7 +1055,198 @@ static void funcargs (LexState *ls, expdesc *f, int line) {
                             (unless changed) one result */
 }
 
+/* ── Yellow Feather Unified Hardware Intrinsic Parser Shortcut ──────────── */
+static int rawblk_ops (LexState *ls, expdesc *v) {
+  TString *name = ls->t.seminfo.ts;
+  const char *str = getstr(name);
+  
+  int is_intrinsic = (strcmp(str, "peek") == 0   || strcmp(str, "poke") == 0   ||
+                      strcmp(str, "memset") == 0 || strcmp(str, "memcpy") == 0 ||
+                      strcmp(str, "reload") == 0 || strcmp(str, "clear") == 0  || 
+                      strcmp(str, "pixel") == 0  || strcmp(str, "rect") == 0   || 
+                      strcmp(str, "sprite") == 0 || strcmp(str, "tile") == 0   ||
+                      strcmp(str, "map") == 0    || strcmp(str, "btn") == 0    || 
+                      strcmp(str, "btnp") == 0);
+  if (!is_intrinsic) return 0;
 
+  // Enforce function execution style call: identity followed by '('
+  luaX_lookahead(ls, ls->L);
+  if (ls->lookahead.token != '(') return 0;
+
+  luaX_next(ls); 
+  checknext(ls, '('); // Digest the open parenthesis
+
+  FuncState *fs = ls->fs;
+  expdesc args[8]; // Array expanded to support max sprite parameters
+  int n = 0;
+
+  // Stream out comma-delimited parameters
+  if (ls->t.token != ')') {
+    do {
+      if (n >= 8) { luaX_syntaxerror(ls, "Too many hardware parameters"); }
+      expr(ls, &args[n++]);
+    } while (testnext(ls, ','));
+  }
+  checknext(ls, ')'); // Digest closing parenthesis
+
+  /* ── CUSTOM HARDWARE CODE GENERATION MAP ── */
+
+  // DYNAMIC PEEK: peek(addr, [size])
+  if (strcmp(str, "peek") == 0) {
+    int addr_reg = luaK_exp2anyreg(fs, &args[0]);
+    // If size argument is provided, map it to a register and offset by +1. 0 = auto/1-byte
+    int size_idx = (n > 1) ? (luaK_exp2anyreg(fs, &args[1]) + 1) : 0;
+    int dest_reg = fs->freereg;
+    luaK_reserveregs(fs, 1);
+    
+    luaK_codeABC(fs, OP_PEEK, dest_reg, addr_reg, size_idx);
+    v->k = VNONRELOC; v->u.info = dest_reg;
+  }
+  
+  // DYNAMIC POKE: poke(addr, value, [size])
+  else if (strcmp(str, "poke") == 0) {
+    int addr_reg = luaK_exp2anyreg(fs, &args[0]);
+    int val_reg  = luaK_exp2anyreg(fs, &args[1]);
+    // 0 means size was omitted -> triggers runtime byte-magnitude auto-detection
+    int size_idx = (n > 2) ? (luaK_exp2anyreg(fs, &args[2]) + 1) : 0;
+    
+    luaK_codeABC(fs, OP_POKE, addr_reg, val_reg, size_idx);
+    v->k = VVOID;
+  }
+  
+  else if (strcmp(str, "memset") == 0) {
+    int dest_reg  = luaK_exp2anyreg(fs, &args[0]);
+    int val_reg   = luaK_exp2anyreg(fs, &args[1]);
+    int count_reg = luaK_exp2anyreg(fs, &args[2]);
+    luaK_codeABC(fs, OP_MEMSET, dest_reg, val_reg, count_reg);
+    v->k = VVOID;
+  }
+  
+  else if (strcmp(str, "memcpy") == 0) {
+    int dest_reg  = luaK_exp2anyreg(fs, &args[0]);
+    int src_reg   = luaK_exp2anyreg(fs, &args[1]);
+    int count_reg;
+    if (n > 2) {
+      count_reg = luaK_exp2anyreg(fs, &args[2]);
+    } else {
+      expdesc nil_exp; nil_exp.k = VNIL;
+      count_reg = luaK_exp2anyreg(fs, &nil_exp);
+    }
+    luaK_codeABC(fs, OP_MEMCPY, dest_reg, src_reg, count_reg);
+    v->k = VVOID;
+  }
+  
+  // reload(filename_string, target_ram_addr)
+  else if (strcmp(str, "reload") == 0) {
+    // Strings are evaluated as constants automatically and passed inside a dynamic register index
+    int file_reg = luaK_exp2anyreg(fs, &args[0]);
+    int dest_reg = luaK_exp2anyreg(fs, &args[1]);
+    
+    luaK_codeABC(fs, OP_RELOAD, file_reg, dest_reg, 0);
+    v->k = VVOID;
+  }
+  
+  else if (strcmp(str, "clear") == 0) {
+    int col_reg;
+    if (n > 0) {
+      col_reg = luaK_exp2anyreg(fs, &args[0]);
+    } else {
+      expdesc nil_exp; nil_exp.k = VNIL;
+      col_reg = luaK_exp2anyreg(fs, &nil_exp);
+    }
+    luaK_codeABC(fs, OP_CLEAR, col_reg, 0, 0);
+    v->k = VVOID;
+  }
+  
+  else if (strcmp(str, "pixel") == 0) {
+    int x_reg   = luaK_exp2anyreg(fs, &args[0]);
+    int y_reg   = luaK_exp2anyreg(fs, &args[1]);
+    int col_reg = luaK_exp2anyreg(fs, &args[2]);
+    luaK_codeABC(fs, OP_PIXEL, x_reg, y_reg, col_reg);
+    v->k = VVOID;
+  }
+  
+  else if (strcmp(str, "rect") == 0) {
+    int x_reg   = luaK_exp2anyreg(fs, &args[0]);
+    int y_reg   = luaK_exp2anyreg(fs, &args[1]);
+    int w_reg   = luaK_exp2anyreg(fs, &args[2]);
+    int h_reg   = luaK_exp2anyreg(fs, &args[3]);
+    int col_reg = luaK_exp2anyreg(fs, &args[4]);
+    
+    luaK_codeABC(fs, OP_RECT, x_reg, y_reg, w_reg);
+    luaK_codeABC(fs, OP_EXTRAARG, h_reg, col_reg, 0);
+    v->k = VVOID;
+  }
+  
+  // sprite(id, x, y, [w], [h], [flip_x], [flip_y])
+  else if (strcmp(str, "sprite") == 0) {
+    int id_reg = luaK_exp2anyreg(fs, &args[0]);
+    int x_reg  = luaK_exp2anyreg(fs, &args[1]);
+    int y_reg  = luaK_exp2anyreg(fs, &args[2]);
+    
+    // Inject defaults into evaluation register pool if fields are missing
+    expdesc def; def.k = VKINT; def.u.ival = 1;
+    int w_reg  = (n > 3) ? luaK_exp2anyreg(fs, &args[3]) : luaK_exp2anyreg(fs, &def);
+    int h_reg  = (n > 4) ? luaK_exp2anyreg(fs, &args[4]) : luaK_exp2anyreg(fs, &def);
+    
+    def.k = VFALSE;
+    int fx_reg = (n > 5) ? luaK_exp2anyreg(fs, &args[5]) : luaK_exp2anyreg(fs, &def);
+    int fy_reg = (n > 6) ? luaK_exp2anyreg(fs, &args[6]) : luaK_exp2anyreg(fs, &def);
+
+    // 3-Word Packet Assembly Line
+    luaK_codeABC(fs, OP_SPRITE, id_reg, x_reg, y_reg);
+    luaK_codeABC(fs, OP_EXTRAARG, w_reg, h_reg, 0);
+    luaK_codeABC(fs, OP_EXTRAARG, fx_reg, fy_reg, 0);
+    v->k = VVOID;
+  }
+  
+  else if (strcmp(str, "tile") == 0) {
+    int x_reg = luaK_exp2anyreg(fs, &args[0]);
+    int y_reg = luaK_exp2anyreg(fs, &args[1]);
+    if (n > 2) {
+      int id_reg = luaK_exp2anyreg(fs, &args[2]);
+      luaK_codeABC(fs, OP_TILE, x_reg, y_reg, id_reg);
+      v->k = VVOID;
+    } else {
+      expdesc nil_exp; nil_exp.k = VNIL;
+      int id_reg = luaK_exp2anyreg(fs, &nil_exp);
+      int dest_reg = fs->freereg;
+      luaK_reserveregs(fs, 1);
+      luaK_codeABC(fs, OP_TILE, dest_reg, x_reg, id_reg);
+      v->k = VNONRELOC; v->u.info = dest_reg;
+    }
+  }
+
+  // NEW: map(stx, sty, scx, scy, [tw], [th])
+  else if (strcmp(str, "map") == 0) {
+    int stx_reg = luaK_exp2anyreg(fs, &args[0]);
+    int sty_reg = luaK_exp2anyreg(fs, &args[1]);
+    int scx_reg = luaK_exp2anyreg(fs, &args[2]);
+    int scy_reg = luaK_exp2anyreg(fs, &args[3]);
+    
+    // Standard system tile sizes if parameters are blanked out
+    expdesc def; def.k = VKINT; def.u.ival = 16; // Assumes 128x96 screen / 8 width defaults
+    int tw_reg  = (n > 4) ? luaK_exp2anyreg(fs, &args[4]) : luaK_exp2anyreg(fs, &def);
+    def.u.ival  = 12; // 96 height / 8 vertical default
+    int th_reg  = (n > 5) ? luaK_exp2anyreg(fs, &args[5]) : luaK_exp2anyreg(fs, &def);
+
+    // 2-Word Packet Assembly Line
+    luaK_codeABC(fs, OP_MAP, stx_reg, sty_reg, scx_reg);
+    luaK_codeABC(fs, OP_EXTRAARG, scy_reg, tw_reg, th_reg);
+    v->k = VVOID;
+  }
+
+  else if (strcmp(str, "btn") == 0 || strcmp(str, "btnp") == 0) {
+    int btn_idx  = luaK_exp2anyreg(fs, &args[0]);
+    int dest_reg = fs->freereg;
+    luaK_reserveregs(fs, 1);
+    OpCode op = (strcmp(str, "btn") == 0) ? OP_BTN : OP_BTNP;
+    luaK_codeABC(fs, op, dest_reg, btn_idx, 0);
+    v->k = VNONRELOC; v->u.info = dest_reg;
+  }
+
+  return 1; 
+}
 
 
 /*
@@ -1077,6 +1268,9 @@ static void primaryexp (LexState *ls, expdesc *v) {
       return;
     }
     case TK_NAME: {
+      if (rawblk_ops(ls, v)) {
+          return; // Skip normal environment lookups on matches
+        }
       singlevar(ls, v);
       return;
     }

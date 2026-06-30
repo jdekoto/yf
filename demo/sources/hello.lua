@@ -4,7 +4,7 @@ function hello.tick()
 	clear(0) -- clear the framebuffer
 		
 	-- this renders the default palette
-	for index = 0, 16 do -- a for loop that handles the palette index
+	for index = 0, 15 do -- a for loop that handles the palette index
 		-- for each index, render the pixel at y = 38 and x = 32 but offset it by its own index
 		pixel(32 + index, 38, index)
 	end

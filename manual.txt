@@ -18,11 +18,8 @@ table of contents:
 	2. a deep dive into each aspect
 		2.1 cpu
 		2.2 memory
-		2.3 framebuffer
-		2.4 controller input
-		2.5 apu
-		2.6 cassette roms + familiar formats
-		2.7 flashrom handling
+		2.3 apu
+		2.4 cassette roms
 	3. api
 		3.1 memory
 		3.2 graphics
@@ -200,6 +197,9 @@ memory:
 	happy palette swapping!
 	
 	regs [0x06400u - 0x065FFu] (64B): the registers will get their own section
+	
+	input (4B):
+	TODO
 	
 	TODO: make this shi simpler.
 	bios font (768B):

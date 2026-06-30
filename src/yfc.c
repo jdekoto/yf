@@ -309,7 +309,7 @@ static bool yfc_compile_workspace_to_bytecode(GrowthBuffer *bytecode_destination
     // 2. Wrap and secure the main execution frame setup module (boot.lua)
     FILE *bf = fopen("boot.lua", "rb");
     if (!bf) {
-        printf("❌ Core Pack Error: Missing mandatory anchor module: boot.lua\n");
+        printf("Core Pack Error: Missing mandatory anchor module: boot.lua\n");
         free_growth_buffer(&master_source_text);
         return false;
     }
@@ -442,7 +442,7 @@ int yfc_pack(const char *cartridge, const char *output) {
     init_growth_buffer(&compiled_bytecode);
 
     if (!yfc_compile_workspace_to_bytecode(&compiled_bytecode)) {
-        fprintf(stderr, "❌ Aborting build package generation due to compilation bugs.\n");
+        fprintf(stderr, "Aborting build package generation due to compilation bugs.\n");
         mtar_close(&tar);
         free_growth_buffer(&compiled_bytecode);
         return -1;
