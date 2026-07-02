@@ -372,7 +372,6 @@ int main(int argc, char *argv[]) {
     }
 
     // --- HANDLE PACKAGING ARGUMENT ---
-    
     const char *target = argv[1];
     
     if (strcmp(argv[1], "--package") == 0) {
@@ -385,13 +384,14 @@ int main(int argc, char *argv[]) {
         return 0;
     }
     
-    // --- RUNNING A CARTRIDGE FOLDER ---
+    // --- RUNNING A CARTRIDGE FOLDER / EXTRACTED ROM DATA ---
     if (has_extension(target, ".yfc")) {
         is_yfc = true;
-        printf("WARNING: Cassette format not tested to its fullest extent\n");
         title_handler(target, true, 0);
         yfc_boot(&vm, target, 0);
-
+     } else if (has_extension(target, ".rom")) {
+        is_yfc = false;
+        vm_load(&vm, target);
      } else {
         is_yfc = false;
         if (chdir(target) != 0) {
@@ -400,7 +400,6 @@ int main(int argc, char *argv[]) {
         }
         title_handler(target, false, 0);
      }
-     
     launch_window:
     
     kit_Context *ctx = kit_create(game_title, FB_WID, FB_HEI, KIT_SCALE4X);
@@ -413,16 +412,17 @@ int main(int argc, char *argv[]) {
         vm_update(&vm);
     
     }
+    
     if (is_yfc) {
         char cleanup_cmd[256];
         #ifdef _WIN32
-    // Grab the standard user temp directory (e.g., C:\Users\Name\AppData\Local\Temp)
+          // Grab the standard user temp directory (e.g., C:\Users\Name\AppData\Local\Temp)
           const char *win_tmp = getenv("TEMP");
           if (!win_tmp) win_tmp = getenv("TMP");
           if (!win_tmp) win_tmp = "."; // Hard fallback to local folder if env vars are missing       
           snprintf(cleanup_cmd, sizeof(cleanup_cmd), "rmdir /s /q \"%s\\yf_sandbox_%d\"", win_tmp, getpid());
         #else
-        // Targets the exact process ID used during the boot process
+          // Targets the exact process ID used during the boot process
           snprintf(cleanup_cmd, sizeof(cleanup_cmd), "rm -rf /tmp/yf_sandbox_%d", getpid());
         #endif
         system(cleanup_cmd);

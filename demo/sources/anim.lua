@@ -1,7 +1,7 @@
 anim = {}
 
 -- load the raw index to sprite bank 0
-reload("assets/sprites/sprites.raw", 0x06900)
+memcpy(0x06900, include('assets/sprites/sprites.raw'))
 
 -- coords for the simple player
 local f = 0

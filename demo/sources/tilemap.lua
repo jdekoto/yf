@@ -1,7 +1,7 @@
 tilemap = {}
 
-reload("assets/map/test.map", 0x1E900)
-reload("assets/sprites/tiles.raw", 0x0A900)
+memcpy(0x1E900, include('assets/map/test.map'))
+memcpy(0x0A900, include('assets/sprites/tiles.raw'))
 
 cx = 0
 cy = 0

@@ -13,6 +13,7 @@
 #include <limits.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdbool.h>
 
 #include "lua.h"
@@ -1170,6 +1171,56 @@ static void simpleexp (LexState *ls, expdesc *v) {
       body(ls, v, 0, ls->linenumber);
       return;
     }
+    case TK_INCLUDE: {
+      luaX_next(ls);          /* Consume the 'include' token */
+      checknext(ls, '(');     /* Check for '(' and consume it */
+      
+      if (ls->t.token != TK_STRING) {
+          luaX_syntaxerror(ls, "string literal expected inside include()");
+      }
+      /* Extract the asset path string from the lexer's semantic info */
+      TString *path_ts = ls->t.seminfo.ts;
+      luaX_next(ls);          /* Consume the filename string token */
+      check(ls, ')');         /* Check for ')' and dont consume it */
+      
+      const char *path = getstr(path_ts);
+      
+      /* Attempt to open the target asset file from disk */
+      FILE *f = fopen(path, "rb");
+      if (!f) {
+        luaX_syntaxerror(ls, luaO_pushfstring(ls->L, "cannot open include file '%s'", path));
+      }
+      
+      /* Measure file size */
+      fseek(f, 0, SEEK_END);
+      long size = ftell(f);
+      fseek(f, 0, SEEK_SET);
+      
+      /* Allocate buffer safely */
+      char *buf = (char *)malloc(size > 0 ? size : 1);
+      size_t read_bytes = 0;
+      if (buf && size > 0) {
+        read_bytes = fread(buf, 1, size, f);
+      }
+      fclose(f);
+      
+      if (size > 0 && !buf) {
+        luaX_syntaxerror(ls, "out of memory allocating compile-time asset buffer");
+      }
+      
+      /* AFTER: Use the lexer to safely anchor the string */
+      TString *asset_string = luaX_newstring(ls, buf, read_bytes);
+      free(buf);
+      
+      /* ** THE MAGIC TRICK: 
+      ** We hand the newly created string directly to codestring().
+      ** This registers the asset into the prototype's constant table (k)
+      ** and sets our expression descriptor 'v' to VKSTR. The compiler 
+      ** now acts as if the user manually typed out the massive raw binary string.
+      */
+      codestring(v, asset_string);
+      break;
+    }
     default: {
       suffixedexp(ls, v);
       return;
@@ -1967,6 +2018,11 @@ static void statement (LexState *ls) {
       luaX_next(ls);  /* skip 'goto' */
       gotostat(ls);
       break;
+    }
+    case TK_INCLUDE: {  /* stat -> include standalone statement */
+      expdesc v;
+      simpleexp(ls, &v); /* Safely parses the entire include('file') expression */
+      break;             /* Simply discards the expression descriptor, allowing it */
     }
     default: {  /* stat -> func | assignment */
       exprstat(ls);

@@ -454,7 +454,7 @@ int yfc_pack(const char *cartridge, const char *output) {
     mtar_write_data(&tar, compiled_bytecode.data, compiled_bytecode.length);
     free_growth_buffer(&compiled_bytecode);
 
-    // pack assets
+    /* TODO: bc of the include macro we just added, this isnt needed anymore. so make folders addable thru inclusions
     #ifdef _WIN32
     struct _stat s;
     if (_stat("assets", &s) == 0 && S_ISDIR(s.st_mode))   pack_target_filtered(&tar, "assets", true);
@@ -463,6 +463,7 @@ int yfc_pack(const char *cartridge, const char *output) {
     struct stat s;
     if (stat("assets", &s) == 0 && S_ISDIR(s.st_mode))   pack_target_filtered(&tar, "assets", true);
     #endif
+    */
     
     // packs any files defined by the inclusions key in config.txt
     pack_inclusions(inclusions, &tar);

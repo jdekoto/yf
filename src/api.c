@@ -197,36 +197,6 @@ static int l_memcpy(lua_State *L) {
     return 0;
 }
 
-// Usage in Lua: reload("assets/level2.map", dest_memory_address)
-static int l_reload(lua_State *L) {
-    const char* filename = luaL_checkstring(L, 1);
-    uint32_t dest_addr   = (uint32_t)luaL_checknumber(L, 2);
-
-    FILE *f = fopen(filename, "rb");
-    if (!f) {
-        printf("[Engine ERROR] Could not open file: \"%s\". Check your path!\n", filename);
-        lua_pushboolean(L, 0); // Return false to Lua
-        return 1;
-    }
-
-    // Find out how big the file is
-    fseek(f, 0, SEEK_END);
-    long size = ftell(f);
-    fseek(f, 0, SEEK_SET);
-
-    // Safety check to ensure we don't overflow the system RAM limits
-    if (dest_addr + size <= RAM_SIZE) {
-        size_t read_bytes = fread(memory + dest_addr, 1, size, f);
-        lua_pushboolean(L, 1); // Return true to Lua
-    } else {
-        printf("[Engine ERROR] Out of bounds! Address 0x%X + Size %ld exceeds RAM_SIZE\n", dest_addr, size);
-        lua_pushboolean(L, 0); // Return false to Lua
-    }
-
-    fclose(f);
-    return 1;
-}
-
 /* ═══════════════════════════════════════════════════════════════
    GRAPHICS API
    ═══════════════════════════════════════════════════════════════ */
@@ -360,7 +330,7 @@ static int l_clip(lua_State *L) {
 }
 
 // Track spreadsheet dimensions directly inside the native runtime layer
-static uint32_t bank_addresses[] = { 0x06900, 0x08900 };
+static uint32_t bank_addresses[] = { 0x06900, 0x0A900 };
 static int bank_widths[]         = { 128, 128 };
 static int bank_heights[]        = { 64, 64 };
 
@@ -771,14 +741,15 @@ void flush_sram(void) {
    ═══════════════════════════════════════════════════════════════ */
 
 static const luaL_Reg api[] = {
-    /* raw memory operations */
+    /* basic memory operations */
     { "peek",      l_peek      },
     { "poke",      l_poke      },
+    
+    /* batch memory operations */
     { "memset",    l_memset    },
     { "memcpy",    l_memcpy    },
-    { "reload",    l_reload    },
     
-    /* graphics rendering primitives */
+    /* rendering primitives */
     { "clear",     l_clear     },
     { "pixel",     l_pixel     },
     { "rect",      l_rect      },
