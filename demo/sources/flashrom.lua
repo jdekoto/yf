@@ -10,11 +10,11 @@ r = 6
 -- We check for a magic validation byte (0xc8) at the very start of sram
 if peek(0x7E000) == 0xc8 then
     -- if we already have a save then set it to the highscore
-    highscore = peek2(0x7E000 + 2)
+    highscore = peek(0x7E000 + 2)
 else
     -- if we dont then intialize it
     poke(0x7E000, 0xc8)
-    poke2(0x7E000 + 2, 0)
+    poke(0x7E000 + 2, 0)
     highscore = 0
 end
 
@@ -75,7 +75,7 @@ function flashrom.tick()
 		-- sets highscore
 		highscore = score
 		--- pokes it into sram
-		poke2(0x7E000 + 2, highscore)
+		poke(0x7E000 + 2, highscore)
 	end
 	
 	-- visual candy

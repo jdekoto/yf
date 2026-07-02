@@ -29,6 +29,8 @@
 #include "ltable.h"
 #include "ltm.h"
 #include "lvm.h"
+#include "mem.h"
+#include "api.h"
 
 
 /*
@@ -78,7 +80,6 @@
 #define l_intfitsf(i)	1
 
 #endif
-
 
 /*
 ** Try to convert a value from string to a number value.

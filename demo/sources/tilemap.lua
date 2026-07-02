@@ -1,4 +1,4 @@
-maptest = {}
+tilemap = {}
 
 reload("assets/map/test.map", 0x1E900)
 reload("assets/sprites/tiles.raw", 0x0A900)
@@ -6,7 +6,7 @@ reload("assets/sprites/tiles.raw", 0x0A900)
 cx = 0
 cy = 0
 
-function maptest.tick()
+function tilemap.tick()
 	clear(0)
 	poke(0x06409, 1)   -- switch to sprite bank 1
 	camera(cx, cy)

@@ -12,6 +12,8 @@
 
 #include <locale.h>
 #include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #include "lua.h"
 
@@ -42,7 +44,7 @@ static const char *const luaX_tokens [] = {
     "end", "false", "for", "function", "goto", "if",
     "in", "local", "nil", "not", "or", "repeat",
     "return", "then", "true", "until", "while",
-    "//", "..", "...", "==", ">=", "<=", "~=",
+    "//", "..", "...", "==", ">=", "<=", "!=",
     "<<", ">>", "::", "<eof>",
     "<number>", "<integer>", "<name>", "<string>",
     "+=", "-=", "*=", "/=", "<<=", ">>=", "&=", "|=", "^="
@@ -442,6 +444,76 @@ static void read_string (LexState *ls, int del, SemInfo *seminfo) {
                                    luaZ_bufflen(ls->buff) - 2);
 }
 
+/*
+** Custom Preprocessor Macro: include("path")
+** Compiles the targeted file directly into an inline Lua string token.
+*/
+static int handle_include_macro (LexState *ls, SemInfo *seminfo) {
+  // To prevent desynchronizing the lexer's whitespace tracking,
+  // we require the open parenthesis to immediately follow 'include'
+  if (ls->current != '(') {
+    return 0; /* Not a macro invocation, treat as normal variable name */
+  }
+  
+  next(ls); /* Consume '(' */
+
+  /* Skip any interior spaces/tabs before the file path string */
+  while (ls->current == ' ' || ls->current == '\t') {
+    next(ls);
+  }
+
+  /* Ensure a valid string literal token delimiter follows */
+  if (ls->current != '"' && ls->current != '\'') {
+    lexerror(ls, "expected asset path string inside include()", TK_NAME);
+  }
+
+  /* Reuse Lua's internal string reader to extract the path cleanly */
+  char sep = ls->current;
+  read_string(ls, sep, seminfo); 
+  /* seminfo->ts now holds the clean asset path string */
+
+  /* Skip any interior spaces/tabs after the path string */
+  while (ls->current == ' ' || ls->current == '\t') {
+    next(ls);
+  }
+
+  /* Validate and consume the closing parenthesis */
+  if (ls->current != ')') {
+    lexerror(ls, "missing closing parenthesis in include()", TK_NAME);
+  }
+  next(ls); /* Consume ')' */
+
+  /* Resolve the file from disk */
+  const char *path = getstr(seminfo->ts);
+  FILE *f = fopen(path, "rb");
+  if (!f) {
+   lexerror(ls, luaO_pushfstring(ls->L, "cannot open include asset '%s'", path), TK_STRING);
+  }
+
+  /* Read the full raw binary payload */
+  fseek(f, 0, SEEK_END);
+  long size = ftell(f);
+  fseek(f, 0, SEEK_SET);
+  
+  char *buf = (char *)malloc(size > 0 ? size : 1);
+  size_t read_bytes = 0;
+  if (size > 0 && buf) {
+    read_bytes = fread(buf, 1, size, f);
+  }
+  fclose(f);
+
+  if (size > 0 && !buf) {
+    lexerror(ls, "out of memory allocating asset buffer", TK_STRING);
+  }
+
+  /* Internalize the raw binary data as a standard, secure Lua String Object */
+  seminfo->ts = luaX_newstring(ls, buf, read_bytes);
+  free(buf);
+
+  /* Lie to the compiler parser and tell it we just read a regular string literal! */
+  return TK_STRING;
+}
+
 
 static int llex (LexState *ls, SemInfo *seminfo) {
   luaZ_resetbuffer(ls->buff);
@@ -539,15 +611,15 @@ static int llex (LexState *ls, SemInfo *seminfo) {
         if (check_next1(ls, '=')) return TK_BXOREQ;
         else return '^';
       }
-      case '~': {
-        next(ls);
-        if (check_next1(ls, '=')) return TK_NE;  /* '~=' */
-        else return '~';
-      }
       case ':': {
         next(ls);
         if (check_next1(ls, ':')) return TK_DBCOLON;  /* '::' */
         else return ':';
+      }
+      case '!': {
+        next(ls);
+        if (check_next1(ls, '=')) return TK_NE;   /* '!=' — same token as '~=' */
+        else return '!';                           /* bare '!' — not otherwise used */
       }
       case '"': case '\'': {  /* short literal strings */
         read_string(ls, ls->current, seminfo);
@@ -582,6 +654,14 @@ static int llex (LexState *ls, SemInfo *seminfo) {
           if (isreserved(ts))  /* reserved word? */
             return ts->extra - 1 + FIRST_RESERVED;
           else {
+            seminfo->ts = ts;
+            /* Custom Interceptor Hook */
+            if (strcmp(getstr(ts), "include") == 0) {
+              int macro_token = handle_include_macro(ls, seminfo);
+              if (macro_token != 0) {
+                return macro_token; /* Successfully transformed into TK_STRING */
+              }
+            }
             return TK_NAME;
           }
         }

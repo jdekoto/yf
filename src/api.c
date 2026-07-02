@@ -6,42 +6,10 @@
 #include "api.h"
 #include "mem.h"
 #include "audio.h"
-#include <string.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <math.h>
-#include <time.h>
-#include <errno.h>
-#include <SDL2/SDL.h>
-#include <lua.h>
-#include <lauxlib.h>
-
-/* ── font constants (must match mem_init packing) ────────────── */
-#define FONT_FIRST      32
-#define FONT_CHAR_W      5
-#define FONT_CHAR_H      5
-#define FONT_STRIDE      6   /* bytes per char in RAM (5 rows + 1 pad) */
-#define FONT_CHAR_ADV    6   /* pixel advance per character            */
-
-/* ── sprite constants ────────────────────────────────────────── */
-#define SPR_W            8
-#define SPR_H            8
-
-/* ── tilemap constants ───────────────────────────────────────── */
-#define MAP_WIDTH      512
-#define MAP_HEIGHT     256
 
 /* ── custom font lookup map ──────────────────────────────────── */
 static int g_ascii_to_font_index[256];
 static int g_font_map_initialized = 0;
-
-/* ── native engine 16-color palette storage ──────────────────── */
-/* ── 16-bit color packing formula ────────────────────────────── */
-// Standard RGB565 packing (5 bits Red, 6 bits Green, 5 bits Blue)
-#define RGB_CONVERT(r, g, b) ((((r) >> 3) << 11) | (((g) >> 2) << 5) | ((b) >> 3))
-
-/* ── save data handling ──────────────────────────────────────── */
- #define SRAM_SIZE 8192 // 8KB hard allocation limit
 
 /* ═══════════════════════════════════════════════════════════════
    INTERNAL PIXEL & COLOR HELPERS
@@ -64,14 +32,14 @@ static inline void _pixel(int x, int y, int col) {
 
     x -= cam_x;
     y -= cam_y;
-    
+
     if (peek(REG_CLIP_EN) == 1) {
         if (x < peek(REG_CLIP_X0) || x > peek(REG_CLIP_X1) ||
             y < peek(REG_CLIP_Y0) || y > peek(REG_CLIP_Y1)) {
             return; // Hardware Clip Discarded
         }
     }
-    
+
     if (x < 0 || x >= FB_WID || y < 0 || y >= FB_HEI) return;
 
     uint16_t color16 = _resolve_color(col);
@@ -164,12 +132,31 @@ static int _get_char_width(uint32_t font_char_addr) {
    MEMORY API
    ═══════════════════════════════════════════════════════════════ */
 
-static int l_peek (lua_State *L) { lua_pushinteger(L, peek ((uint32_t)luaL_checkinteger(L,1)));              return 1; }
-static int l_poke (lua_State *L) { poke((uint32_t)luaL_checkinteger(L,1),(uint8_t) luaL_checkinteger(L,2));  return 0; }
-static int l_peek2(lua_State *L) { lua_pushinteger(L, peek2((uint32_t)luaL_checkinteger(L,1)));              return 1; }
-static int l_poke2(lua_State *L) { poke2((uint32_t)luaL_checkinteger(L,1),(uint16_t)luaL_checkinteger(L,2)); return 0; }
-static int l_peek4(lua_State *L) { lua_pushinteger(L, peek4((uint32_t)luaL_checkinteger(L,1)));              return 1; }
-static int l_poke4(lua_State *L) { poke4((uint32_t)luaL_checkinteger(L,1),(uint32_t)luaL_checkinteger(L,2)); return 0; }
+static int l_peek(lua_State *L) {
+    uint32_t addr = (uint32_t)luaL_checkinteger(L, 1);
+    int size = (int)luaL_optinteger(L, 2, 1);
+    uint32_t val;
+    if (size == 2)      val = peek2(addr);
+    else if (size == 4) val = peek4(addr);
+    else                val = peek(addr);
+    lua_pushinteger(L, val);
+    return 1;
+}
+
+static int l_poke(lua_State *L) {
+    uint32_t addr = (uint32_t)luaL_checkinteger(L, 1);
+    lua_Integer val = luaL_checkinteger(L, 2);
+    int size = (int)luaL_optinteger(L, 3, 0);
+    if (size == 2)      poke2(addr, (uint16_t)val);
+    else if (size == 4) poke4(addr, (uint32_t)val);
+    else if (size == 1) poke(addr, (uint8_t)val);
+    else {
+        if (val < 0 || val > 65535) poke4(addr, (uint32_t)val);
+        else if (val > 255)         poke2(addr, (uint16_t)val);
+        else                        poke(addr, (uint8_t)val);
+    }
+    return 0;
+}
 
 static int l_memset(lua_State *L) {
     uint32_t dest  = (uint32_t)luaL_checknumber(L, 1);
@@ -185,33 +172,28 @@ static int l_memset(lua_State *L) {
 static int l_memcpy(lua_State *L) {
     // Argument 1 is always the target address in your fantasy console RAM
     uint32_t dest_addr = (uint32_t)luaL_checkinteger(L, 1);
-    
+
     // Check the type of the second argument dynamically
     if (lua_type(L, 2) == LUA_TSTRING) {
         // SCENARIO A: The user passed a raw Lua string!
         size_t str_len;
         const char *src_str = luaL_checklstring(L, 2, &str_len);
-        
+
         // If argument 3 is provided, use it as count; otherwise default to full string length
         size_t count = luaL_optinteger(L, 3, str_len);
         
-        // --- Insert your custom engine memory safety bounds checks here ---
-        // Example: if (dest_addr + count > MAX_RAM) return luaL_error(L, "Out of bounds!");
-        
         // Stream bytes straight from the Lua VM heap into your hardware memory array
         memcpy(&memory[dest_addr], src_str, count);
-        
+
     } else {
         // SCENARIO B: The user passed a source memory address number
         uint32_t src_addr = (uint32_t)luaL_checkinteger(L, 2);
         size_t count      = (size_t)luaL_checkinteger(L, 3);
-        
-        // --- Insert your custom engine memory safety bounds checks here ---
-        
+
         // Standard hardware-to-hardware RAM block copy
         memcpy(&memory[dest_addr], &memory[src_addr], count);
     }
-    
+
     return 0;
 }
 
@@ -253,7 +235,7 @@ static int l_reload(lua_State *L) {
 static int l_clear(lua_State *L) {
     int col_param = (int)luaL_optinteger(L, 1, 0);
     uint16_t color16 = _resolve_color(col_param);
-    
+
     // Clear whole frame buffer sequentially via standard poke2 iterations
     for (uint32_t addr = ADDR_FB; addr < ADDR_FB + (FB_WID * FB_HEI * 2); addr += 2) {
         poke2(addr, color16);
@@ -277,11 +259,11 @@ static int l_rect(lua_State *L) {
     int w = (int)luaL_checknumber(L, 3);
     int h = (int)luaL_checknumber(L, 4);
     int col = (int)luaL_checkinteger(L, 5);
-    
+
     // 1. Fetch live transformations from Hardware Registers
     int16_t cam_x = (int16_t)peek2(REG_CAM_X);
     int16_t cam_y = (int16_t)peek2(REG_CAM_Y);
-    
+
     x -= cam_x;
     y -= cam_y;
 
@@ -299,7 +281,7 @@ static int l_rect(lua_State *L) {
     if (y1 < 0) y1 = 0;
     if (x2 > FB_WID) x2 = FB_WID;
     if (y2 > FB_HEI) y2 = FB_HEI;
-    
+
     // 2. Fetch Scissors Engine configuration settings
     uint8_t clip_en  = peek(REG_CLIP_EN);
     int min_x = 0;
@@ -334,7 +316,7 @@ static int l_rect(lua_State *L) {
         // if (x2 < min_x || x2 > max_x) continue;
         // Calculate the physical byte start offset for this specific row line
         uint32_t row_bytes_offset = (cy * FB_WID + x1) * 2;
-        
+
         for (int i = 0; i < row_pixels; i++) {
             uint32_t pixel_offset = row_bytes_offset + (i * 2);
             fb[pixel_offset]     = low_byte;
@@ -378,9 +360,9 @@ static int l_clip(lua_State *L) {
 }
 
 // Track spreadsheet dimensions directly inside the native runtime layer
-static uint32_t bank_addresses[] = { 0x06900, 0x0A900 };
+static uint32_t bank_addresses[] = { 0x06900, 0x08900 };
 static int bank_widths[]         = { 128, 128 };
-static int bank_heights[]        = { 128, 128 };
+static int bank_heights[]        = { 64, 64 };
 
 /* sprite(id, x, y, [w], [h], [flip_x], [flip_y]) */
 int l_sprite(lua_State *L) {
@@ -469,7 +451,7 @@ static int l_text(lua_State *L) {
 
     for (const unsigned char *p = (const unsigned char *)str; *p; p++) {
         unsigned char c = *p;
-        
+
         /* Inline upper casing: string.upper(str) */
         if (c >= 'a' && c <= 'z') {
             c = c - 'a' + 'A';
@@ -483,7 +465,7 @@ static int l_text(lua_State *L) {
             if (idx != -1) {
                 uint32_t font_char_addr = ADDR_FONT + (uint32_t)idx * FONT_STRIDE;
                 int char_width = _get_char_width(font_char_addr);
-                
+
                 for (int row = 0; row < FONT_CHAR_H; row++) {
                     uint8_t row_byte = peek(font_char_addr + row);
                     for (int col = 0; col < char_width; col++) {
@@ -585,7 +567,7 @@ static int l_btn(lua_State *L) {
     int absolute_bit = btn_idx;
 
     // Read the live byte block where this bit resides
-    uint32_t live_mask = peek4(ADDR_INPUT);
+    uint32_t live_mask = peek4(0x06440u);
 
     lua_pushboolean(L, (live_mask & (1 << absolute_bit)) != 0);
     return 1;
@@ -597,8 +579,8 @@ static int l_btnp(lua_State *L) {
 
     int absolute_bit = btn_idx;
 
-    uint32_t live_mask = peek4(ADDR_INPUT);
-    uint32_t prev_mask = peek4(ADDR_INPUT + 4);
+    uint32_t live_mask = peek4(0x06440u);
+    uint32_t prev_mask = peek4(0x06444u);
 
     // Button is pressed now, but WAS NOT pressed on the previous frame loop
     bool pressed = ((live_mask & (1 << absolute_bit)) != 0) && 
@@ -789,15 +771,11 @@ void flush_sram(void) {
    ═══════════════════════════════════════════════════════════════ */
 
 static const luaL_Reg api[] = {
-    /* memory interacting functions */
-    { "peek",      l_peek      },  
+    /* raw memory operations */
+    { "peek",      l_peek      },
     { "poke",      l_poke      },
-    { "peek2",     l_peek2     }, 
-    { "poke2",     l_poke2     },
-    { "peek4",     l_peek4     }, 
-    { "poke4",     l_poke4     },
     { "memset",    l_memset    },
-    { "memcpy",    l_memcpy    },  
+    { "memcpy",    l_memcpy    },
     { "reload",    l_reload    },
     
     /* graphics rendering primitives */
@@ -806,7 +784,7 @@ static const luaL_Reg api[] = {
     { "rect",      l_rect      },
     { "camera",    l_camera    },
     { "clip",      l_clip      },
-    
+
     /* audio api */
     { "sound",     l_sound     },
     { "module",    l_module    },
@@ -822,7 +800,7 @@ static const luaL_Reg api[] = {
     /* matrix tilemap functions */
     { "tile",      l_tile      },
     { "map",       l_map       },
-    
+
     /* flashrom handling */
     { "flash",     l_flash     },
     { NULL, NULL }

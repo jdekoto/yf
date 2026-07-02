@@ -83,19 +83,6 @@ LUAI_DDEF const lu_byte luaP_opmodes[NUM_OPCODES] = {
  ,opmode(0, 0, 0, 1, 0, iABC)		/* OP_LEI */
  ,opmode(0, 0, 0, 1, 0, iABC)		/* OP_GTI */
  ,opmode(0, 0, 0, 1, 0, iABC)		/* OP_GEI */
- ,opmode(0, 0, 0, 0, 1, iABC)		/* OP_PEEK (Writes value back to Reg A) */
- ,opmode(0, 0, 0, 0, 0, iABC)		/* OP_POKE */
- ,opmode(0, 0, 0, 0, 0, iABC)		/* OP_MEMSET */
- ,opmode(0, 0, 0, 0, 0, iABC)		/* OP_MEMCPY */
- ,opmode(0, 0, 0, 0, 0, iABC)		/* OP_RELOAD */
- ,opmode(0, 0, 0, 0, 0, iABC)		/* OP_CLEAR */
- ,opmode(0, 0, 0, 0, 0, iABC)		/* OP_PIXEL */
- ,opmode(0, 0, 0, 0, 0, iABC)		/* OP_RECT */
- ,opmode(0, 0, 0, 0, 0, iABC)		/* OP_SPRITE */
- ,opmode(0, 0, 0, 0, 0, iABC)		/* OP_TILE (Can read/write dynamically) */
- ,opmode(0, 0, 0, 0, 0, iABC)		/* OP_MAP */
- ,opmode(0, 0, 0, 0, 1, iABC)		/* OP_BTN (Writes boolean back to Reg A) */
- ,opmode(0, 0, 0, 0, 1, iABC)		/* OP_BTNP (Writes boolean back to Reg A) */
  ,opmode(0, 0, 0, 1, 0, iABC)		/* OP_TEST */
  ,opmode(0, 0, 0, 1, 1, iABC)		/* OP_TESTSET */
  ,opmode(0, 1, 1, 0, 1, iABC)		/* OP_CALL */

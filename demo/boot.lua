@@ -1,11 +1,11 @@
--- includes all the demo scenes into the cassttes entry file
+-- includes all the demo scenes into the cassettes entry file
 require("hello")
 require("anim")
 require("audio")
 require("dots3d")
 require("frame")
 require("flashrom")
-require("map")
+require("tilemap")
 
 -- main initalization function
 function _boot()
@@ -13,7 +13,7 @@ function _boot()
 	reload("assets/sfx/soundbank.bin", 0x0E900)
 
 	-- based on ANTIRUINS' scene example, make a table of states for each demo
-	states = { "hello", "anim", "map", "audio", "frame", "flashrom", "dots3d" }
+	states = { "hello", "anim", "tilemap", "audio", "frame", "flashrom", "dots3d" }
 	-- or current state, for right now a meaningless number. but it will set the current
 	-- scene by referring to the index of the state table
 	cState = 1
@@ -54,12 +54,12 @@ function _tick()
 		frame.tick()
 	elseif mode == "flashrom" then
 		flashrom.tick()
-	elseif mode == "map" then
-		maptest.tick()
+	elseif mode == "tilemap" then
+		tilemap.tick()
 	end
 
 	-- reset the camera for the map since its a global hardware offset
-	if mode == "map" then
+	if mode == "tilemap" then
 		camera()
 	end
 end

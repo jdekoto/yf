@@ -279,21 +279,6 @@ OP_LEI,/*	A sB k	if ((R[A] <= sB) ~= k) then pc++		*/
 OP_GTI,/*	A sB k	if ((R[A] > sB) ~= k) then pc++			*/
 OP_GEI,/*	A sB k	if ((R[A] >= sB) ~= k) then pc++		*/
 
-// oh boy heres the api. im not explaining what the other opcodes are so yeah.
-OP_PEEK,
-OP_POKE,
-OP_MEMSET,
-OP_MEMCPY,
-OP_RELOAD,
-OP_CLEAR,
-OP_PIXEL,
-OP_RECT,
-OP_SPRITE,
-OP_TILE,
-OP_MAP,
-OP_BTN,
-OP_BTNP,
-
 OP_TEST,/*	A k	if (not R[A] == k) then pc++			*/
 OP_TESTSET,/*	A B k	if (not R[B] == k) then pc++ else R[A] := R[B]	*/
 
