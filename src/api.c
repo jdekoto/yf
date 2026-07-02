@@ -41,8 +41,26 @@ static inline void _pixel(int x, int y, int col) {
     }
 
     if (x < 0 || x >= FB_WID || y < 0 || y >= FB_HEI) return;
-
+    
     uint16_t color16 = _resolve_color(col);
+    
+        // 1. Read the 16-bit pattern mask from hardware registers
+    uint16_t pattern = (memory[REG_FILLP] << 8) | memory[REG_FILLP + 1];
+
+    if (pattern != 0) {
+        // Find which bit of the 4x4 grid we are currently on
+        int bit_index = (x % 4) + ((y % 4) * 4);
+        
+        // Check if the bit is active (reading from MSB to LSB)
+        if ((pattern >> (15 - bit_index)) & 1) {
+            uint8_t secondary_color = memory[REG_FILLP_COLOR];
+            
+            // Treat color index 0 (or any choice) as transparent dither
+            if (secondary_color == 0xFF) return; 
+            color16 = secondary_color;
+        }
+    }
+    
     uint32_t addr = ADDR_FB + (uint32_t)(y * FB_WID + x) * 2;
     poke2(addr, color16);
 }

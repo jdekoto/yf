@@ -76,7 +76,7 @@ memory map:
 	0x7E000u-0x7FFFFu  	SRAM Flash Save RAM (8KB)
  
 i/o map:
-	hardware camera / clip + bank switcher:
+	hardware fx + bank switcher:
 	0x06400u 		    Camera X position (16-bit)
 	0x06402u				Camera Y position (16-bit)
 	0x06404u				Clip Enable 
@@ -85,6 +85,11 @@ i/o map:
 	0x06407u 			Clip X1
 	0x06408u 			Clip Y1
 	0x06409u 			Active Sprite Bank
+	0x0640Au 			4x4 Pattern Mask
+	0x0640Cu				Pattern Mask Color
+	0x0640Du 			Scanline Distortion Amplitude
+	0x0640Eu 			Scanline Distortion Frequency
+	0x0640Fu				Scanline Distortion Time
 
 	apu registers:
 	0x06450u + (ch*10) 	Channel's Status

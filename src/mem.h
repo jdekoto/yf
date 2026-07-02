@@ -47,6 +47,13 @@
 
 #define REG_BANK_SW     (ADDR_REGS + 9)  /* Sprite/Tile Bank Control Switcher */
 
+#define REG_FILLP       (ADDR_REGS + 10) /* 4x4 Dither Pattern Mask (16-bit, 2 bytes) */
+#define REG_FILLP_COLOR (ADDR_REGS + 12) /* Secondary Dither Color (8-bit, 1 byte) */
+
+#define REG_WAVE_AMP    (ADDR_REGS + 13) /* Scanline Wave Distortion Amplitude (8-bit, 1 byte) */
+#define REG_WAVE_FREQ   (ADDR_REGS + 14) /* Scanline Wave Distortion Frequency (8-bit, 1 byte) */
+#define REG_WAVE_TIME   (ADDR_REGS + 15) /* Scanline Wave Distortion Time/Phase (8-bit, 1 byte) */
+
 extern uint8_t memory[RAM_SIZE];
 
 uint8_t  peek (uint32_t addr);

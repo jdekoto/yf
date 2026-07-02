@@ -35,19 +35,45 @@ void fb_expand(uint16_t *dst) {
     // Point to the beginning of your 16-bit Framebuffer in RAM
     uint8_t *fb = (uint8_t*)memory + ADDR_FB;
     
-    for (int i = 0; i < FB_WID * FB_HEI; i++) {
-        // Because each pixel is now 2 bytes, calculate the byte index
-        int byte_idx = i * 2;
+    // Grab the wave parameters from your hardware registers
+    uint8_t amp  = memory[REG_WAVE_AMP];
+    uint8_t freq = memory[REG_WAVE_FREQ];
+    uint8_t t    = memory[REG_WAVE_TIME];
+
+    // Loop through every scanline (Y)
+    for (int y = 0; y < FB_HEI; y++) {
+        int h_offset = 0;
         
-        // Grab the Low Byte and High Byte from your flat RAM array
-        uint8_t low  = fb[byte_idx];
-        uint8_t high = fb[byte_idx + 1];
-        
-        // Combine them back into a single 16-bit color integer
-        uint16_t color16 = low | (high << 8);
-        
-        // Write it directly to the SDL texture / destination pixel array!
-        dst[i] = color16;
+        // Calculate the wave offset ONCE per row
+        if (amp > 0) {
+            h_offset = (int)(sinf((y * freq + t) * 0.05f) * amp);
+        }
+
+        // Loop through every pixel in this scanline (X)
+        for (int x = 0; x < FB_WID; x++) {
+            // 1. Compute where this pixel lands on the screen texture
+            int dst_idx = (y * FB_WID) + x;
+
+            // 2. Apply the horizontal shift to our source X coordinate, wrapping edges
+            int src_x = (x + h_offset) % FB_WID;
+            if (src_x < 0) src_x += FB_WID; // Handle negative wrapping safely
+
+            // 3. Convert the shifted (src_x, y) back into a flat 1D pixel index
+            int src_pixel_idx = (y * FB_WID) + src_x;
+            
+            // 4. Because each pixel is 2 bytes, calculate the byte index in RAM
+            int byte_idx = src_pixel_idx * 2;
+            
+            // 5. Grab the Low Byte and High Byte from your flat RAM array (Your exact logic!)
+            uint8_t low  = fb[byte_idx];
+            uint8_t high = fb[byte_idx + 1];
+            
+            // 6. Combine them back into a single 16-bit color integer
+            uint16_t color16 = low | (high << 8);
+            
+            // 7. Write it directly to the SDL texture / destination pixel array!
+            dst[dst_idx] = color16;
+        }
     }
 }
 
