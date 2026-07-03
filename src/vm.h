@@ -11,7 +11,7 @@
 #include "api.h"
 
 
-typedef struct { lua_State *L; } VM;
+typedef struct { lua_State *L; char id[8]; } VM;
 
 void vm_init    (VM *vm);
 void vm_runtime (VM *vm);

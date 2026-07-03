@@ -720,49 +720,6 @@ int l_module(lua_State *L) {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   FLASHROM UTILITES
-   ═══════════════════════════════════════════════════════════════ */
-
-static char g_sram_disk_path[1024] = {0};
-static bool g_sram_active = false;
-
-/* flash("game_or_company_id") - initializes to flush sram to disk */
-static int l_flash(lua_State *L) {
-    const char *id = luaL_checkstring(L, 1);
-    
-    // 1. Resolve safe storage path from SDL
-    char *pref_dir = SDL_GetPrefPath("yellowfeather", "flashrom");
-    if (!pref_dir) {
-        return luaL_error(L, "Failed to resolve safe storage directory via SDL.");
-    }
-    snprintf(g_sram_disk_path, sizeof(g_sram_disk_path), "%s%s.dat", pref_dir, id);
-    SDL_free(pref_dir); // Free memory allocated by SDL
-
-    // 2. Clear out current SRAM register frame to standard cold-boot values
-    memset(&memory[ADDR_SRAM], 0, SRAM_SIZE);
-    g_sram_active = true;
-
-    // 3. Load file data straight into system memory at ADDR_SRAM if it exists
-    FILE *f = fopen(g_sram_disk_path, "rb");
-    if (f) {
-        fread(&memory[ADDR_SRAM], sizeof(uint8_t), SRAM_SIZE, f);
-        fclose(f);
-    }
-
-    return 0;
-}
-// actually flushes sram on yf shutdown, probably will have hotkey to do it manually
-void flush_sram(void) {
-    if (!g_sram_active || g_sram_disk_path[0] == '\0') return;
-
-    FILE *f = fopen(g_sram_disk_path, "wb");
-    if (f) {
-        fwrite(&memory[ADDR_SRAM], sizeof(uint8_t), SRAM_SIZE, f);
-        fclose(f);
-    }
-}
-
-/* ═══════════════════════════════════════════════════════════════
    REGISTRATION
    ═══════════════════════════════════════════════════════════════ */
 
@@ -797,9 +754,6 @@ static const luaL_Reg api[] = {
     /* matrix tilemap functions */
     { "tile",      l_tile      },
     { "map",       l_map       },
-
-    /* flashrom handling */
-    { "flash",     l_flash     },
     { NULL, NULL }
 };
 

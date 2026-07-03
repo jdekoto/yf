@@ -10,6 +10,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <limits.h>
 
 
 #ifndef O_BINARY
@@ -17,19 +18,23 @@
 #endif
 
 #ifdef _WIN32
+    #include <windows.h>
     #include <direct.h>
-    #include <process.h> // Needed for getpid() on Windows
     #define chdir _chdir
     #define getpid _getpid
     // Force mkdir to drop the mode argument on Windows
-    #define mkdir(path, mode) _mkdir(path) 
+    #define mkdir(path) _mkdir(path) 
 #else
     #include <unistd.h>
+    #include <sys/stat.h>
+    #include <sys/types.h>
+    #define mkdir(path) mkdir(path, 0755)
 #endif
 
 static VM vm;
 static bool is_yfc = false;
 static char game_title[32];
+static char game_id[8];
 
 void fb_expand(uint16_t *dst) {
     // Point to the beginning of your 16-bit Framebuffer in RAM
@@ -153,6 +158,119 @@ void map_inputs(kit_Context *ctx) {
     poke(0x06443, (uint8_t)((final_mask >> 24) & 0xFF));
 }
 
+// --- AUTOMATED ENGINE SRAM PERSISTENCE LAYER ---
+#ifdef _WIN32
+    #define PATH_SEP_STR "\\"
+#elif defined(__APPLE__)
+    #include <mach-o/dyld.h> // Required for macOS executable path tracking
+    #include <sys/stat.h>
+    #include <sys/types.h>
+    #include <limits.h>
+    #define PATH_SEP_STR "/"
+#else
+    #define PATH_SEP_STR "/"
+#endif
+
+static void get_saves_directory(char *out_dir, size_t max_size) {
+#ifdef _WIN32
+    char buffer[MAX_PATH] = {0};
+    GetModuleFileNameA(NULL, buffer, MAX_PATH);
+    char *last_slash = strrchr(buffer, '\\');
+    if (last_slash) *last_slash = '\0';
+    snprintf(out_dir, max_size, "%s" PATH_SEP_STR "saves", buffer);
+#elif defined(__APPLE__)
+    char buffer[PATH_MAX] = {0};
+    uint32_t size = sizeof(buffer);
+    
+    if (_NSGetExecutablePath(buffer, &size) == 0) {
+        // Resolve any symlinks to get the absolute, clean path
+        char real_res[PATH_MAX];
+        if (realpath(buffer, real_res) != NULL) {
+            strncpy(buffer, real_res, sizeof(buffer) - 1);
+        }
+
+        // 1. Strip the executable name (e.g., /yf → Contents/MacOS)
+        char *sl = strrchr(buffer, '/');
+        if (sl) {
+            *sl = '\0';
+            
+            // 2. Strip the MacOS directory (e.g., /MacOS → Contents)
+            sl = strrchr(buffer, '/');
+            if (sl) {
+                *sl = '\0';
+                
+                // 3. Build the final path targeted inside Resources/saves
+                snprintf(out_dir, max_size, "%s/Resources/saves", buffer);
+                return;
+            }
+        }
+    }
+    // Fallback if running outside of a standard macOS App Bundle structure
+    snprintf(out_dir, max_size, "." PATH_SEP_STR "saves");
+#else // Linux
+    char buffer[PATH_MAX] = {0};
+    ssize_t len = readlink("/proc/self/exe", buffer, sizeof(buffer) - 1);
+    if (len != -1) {
+        buffer[len] = '\0';
+        char *last_slash = strrchr(buffer, '/');
+        if (last_slash) *last_slash = '\0';
+        snprintf(out_dir, max_size, "%s" PATH_SEP_STR "saves", buffer);
+    } else {
+        snprintf(out_dir, max_size, "." PATH_SEP_STR "saves");
+    }
+#endif
+}
+
+static void dump_sram(VM *vm) {
+    // 1. Defensively check if we have a valid game ID initialized
+    if (strlen(vm->id) == 0 || strncmp(vm->id, "BLANK", 5) == 0) {
+        return; 
+    }
+    
+    char saves_dir[512];
+    get_saves_directory(saves_dir, sizeof(saves_dir));
+
+    // 2. Ensure the "saves" directory exists
+    mkdir(saves_dir);
+
+    // 3. Construct the clean path format: saves/[id].dat
+    char save_path[512];
+    snprintf(save_path, sizeof(save_path), "%s" PATH_SEP_STR "%.8s.dat", saves_dir, vm->id);
+
+    // 4. Stream the raw 8KB block directly out of VM memory to the host storage
+    FILE *f = fopen(save_path, "wb");
+    if (!f) {
+        fprintf(stderr, "[SAVE ENGINE] Warning: Could not create save file at %s\n", save_path);
+        return;
+    } else {
+        fwrite(&memory[ADDR_SRAM], sizeof(uint8_t), SRAM_SIZE, f);
+        fclose(f);
+    }
+}
+
+static void load_sram(VM *vm) {
+    if (strlen(vm->id) == 0 || strncmp(vm->id, "BLANK", 5) == 0) {
+        return;
+    }
+
+    char saves_dir[512];
+    get_saves_directory(saves_dir, sizeof(saves_dir));
+    
+    char save_path[512];
+    snprintf(save_path, sizeof(save_path), "%s" PATH_SEP_STR "%.8s.dat", saves_dir, vm->id);
+
+    FILE *f = fopen(save_path, "rb");
+    if (!f) {
+        // If no save file exists yet, clear the SRAM bank to 0 so it's clean for the dev
+        memset(&memory[ADDR_SRAM], 0, SRAM_SIZE);
+        printf("i dont see a file gng\n");
+        return;
+    } else {
+        fread(&memory[ADDR_SRAM], sizeof(uint8_t), SRAM_SIZE, f);
+        fclose(f);
+    }
+}
+
 // loads everything needed into ram.
 static void mem_init() {
     // initialize the array
@@ -206,6 +324,7 @@ static void title_handler(const char *path, long offset) {
             char id[8];
             if (read(fd, magic, 4) == 4 && strncmp(magic, "YFC!", 4) == 0) {
                 if (read(fd, id, 8) == 8) {
+                    strncpy(game_id, id, 8);
                     // The title is stored immediately after the magic sig and id for 32 bytes
                     char raw_title[32] = {0};
                     if (read(fd, raw_title, 32) == 32) {
@@ -247,6 +366,13 @@ static void title_handler(const char *path, long offset) {
                 if (strlen(extracted_title) > 0) {
                     strncpy(game_title, extracted_title, 32);
                 }
+                
+                // we're also gonna handle the game's id into it.
+                char extracted_id[8] = {0};
+                parse_config(buf, "id", extracted_id, sizeof(extracted_id));
+                if (strlen(extracted_id) > 0) {
+                    strncpy(game_id, extracted_id, 8);
+                } 
                 free(buf);
             }
             fclose(cf);
@@ -368,11 +494,13 @@ int main(int argc, char *argv[]) {
         if (res_cart) {
             is_yfc = true;
             title_handler(res_cart, 0);
+            strncpy(vm.id, game_id, 8);
+            load_sram(&vm);
             yfc_boot(&vm, res_cart, 0);
             goto launch_window;
         }
     }
-    
+    /*
     #else
       if (fused_offset >= 0) {
           printf("[ENGINE] Fused game stream payload identified at byte offset: %ld\n", fused_offset);
@@ -380,10 +508,12 @@ int main(int argc, char *argv[]) {
           
           // We pass the engine's own running path as the cartridge target argument!
           title_handler(argv[0], fused_offset);
+          strncpy(vm.id, game_id, 8);
+          load_sram(&vm);
           yfc_boot(&vm, argv[0], fused_offset);
-          
           goto launch_window;
       }
+    */
     #endif
 
     if (argc < 2) {
@@ -418,6 +548,8 @@ int main(int argc, char *argv[]) {
     if (has_extension(target, ".yfc")) {
         is_yfc = true;
         title_handler(target, 0);
+        strncpy(vm.id, game_id, 8);
+        load_sram(&vm);
         yfc_boot(&vm, target, 0);
      } else if (has_extension(target, ".lua")) {
         is_yfc = false;
@@ -429,6 +561,8 @@ int main(int argc, char *argv[]) {
             return 1;
         }
         title_handler(target, 0);
+        strncpy(vm.id, game_id, 8);
+        load_sram(&vm);
      }
     // i really like goto's now :)
     launch_window:
@@ -443,7 +577,7 @@ int main(int argc, char *argv[]) {
         vm_update(&vm);
     
     }
-    flush_sram();
+    dump_sram(&vm);
     vm_shutdown(&vm);
     kit_destroy(ctx);
     return 0;

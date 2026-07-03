@@ -1,9 +1,6 @@
 
 flashrom = {}
 
--- initaites sram and its flushing to disk on shutdown.
-flash('testfire')
-
 score = 0
 r = 6
 

@@ -108,6 +108,7 @@ void vm_load(VM *vm, const char *path) {
     call_fn(vm->L, "_boot");
 }
 
+// for our yfc_boot function mostly
 void vm_execute(VM *vm, const char* buf, int len, const char* name) {
     // borrowed directly from BIOS code
     if (luaL_loadbuffer(vm->L, buf, len, name) != LUA_OK) {
