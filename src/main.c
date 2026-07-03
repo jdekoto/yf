@@ -196,22 +196,25 @@ static bool has_extension(const char *filename, const char *ext) {
     return len > ext_len && strcmp(filename + len - ext_len, ext) == 0;
 }
 
-static void title_handler(const char *path, bool is_cart, long offset) {
-    if (is_cart) {
+static void title_handler(const char *path, long offset) {
+    if (is_yfc) {
         // --- CARTRIDGE BINARY EXTRACTOR ---
         int fd = open(path, O_RDONLY | O_BINARY);
         if (fd >= 0) {
             lseek(fd, offset, SEEK_SET);
             char magic[4];
+            char id[8];
             if (read(fd, magic, 4) == 4 && strncmp(magic, "YFC!", 4) == 0) {
-                // The title is stored immediately after the 4-byte magic token for 32 bytes
-                char raw_title[32] = {0};
-                if (read(fd, raw_title, 32) == 32) {
-                    // Force a safe null-terminator in case the header was un-terminated
-                    raw_title[31] = '\0'; 
-                    // If it wasn't left completely empty, copy it to our engine runtime variable
-                    if (strlen(raw_title) > 0) {
-                        strncpy(game_title, raw_title, 32);
+                if (read(fd, id, 8) == 8) {
+                    // The title is stored immediately after the magic sig and id for 32 bytes
+                    char raw_title[32] = {0};
+                    if (read(fd, raw_title, 32) == 32) {
+                        // Force a safe null-terminator in case the header was un-terminated
+                        raw_title[31] = '\0'; 
+                        // If it wasn't left completely empty, copy it to our engine runtime variable
+                        if (strlen(raw_title) > 0) {
+                            strncpy(game_title, raw_title, 32);
+                        }
                     }
                 }
             }
@@ -364,7 +367,7 @@ int main(int argc, char *argv[]) {
         const char *res_cart = find_resources_cart(argv[0]);
         if (res_cart) {
             is_yfc = true;
-            title_handler(res_cart, true, 0);
+            title_handler(res_cart, 0);
             yfc_boot(&vm, res_cart, 0);
             goto launch_window;
         }
@@ -376,7 +379,7 @@ int main(int argc, char *argv[]) {
           is_yfc = true;
           
           // We pass the engine's own running path as the cartridge target argument!
-          title_handler(argv[0], true, fused_offset);
+          title_handler(argv[0], fused_offset);
           yfc_boot(&vm, argv[0], fused_offset);
           
           goto launch_window;
@@ -390,8 +393,9 @@ int main(int argc, char *argv[]) {
     
     if (strcmp(argv[1], "--help") == 0) {
         printf("Usage:\n"
+        "To run a script:    ./yf <script_name>\n"
         "To run a folder:    ./yf <cassette_folder>\n"
-        "To pack a cart:    ./yf --package <cassette_folder> <cassette_name>\n"
+        "To pack a cart:     ./yf --package <cassette_folder> <cassette_name>\n"
         );
         
         return 1;
@@ -410,12 +414,12 @@ int main(int argc, char *argv[]) {
         return 0;
     }
     
-    // --- RUNNING A CARTRIDGE FOLDER / EXTRACTED ROM DATA ---
+    // --- RUNNING ANYTHING ---
     if (has_extension(target, ".yfc")) {
         is_yfc = true;
-        title_handler(target, true, 0);
+        title_handler(target, 0);
         yfc_boot(&vm, target, 0);
-     } else if (has_extension(target, ".rom")) {
+     } else if (has_extension(target, ".lua")) {
         is_yfc = false;
         vm_load(&vm, target);
      } else {
@@ -424,8 +428,9 @@ int main(int argc, char *argv[]) {
             printf("ERROR: Could not open or find cartridge folder: %s\n", target);
             return 1;
         }
-        title_handler(target, false, 0);
+        title_handler(target, 0);
      }
+    // i really like goto's now :)
     launch_window:
     
     kit_Context *ctx = kit_create(game_title, FB_WID, FB_HEI, KIT_SCALE4X);
@@ -438,21 +443,6 @@ int main(int argc, char *argv[]) {
         vm_update(&vm);
     
     }
-    
-    if (is_yfc) {
-        char cleanup_cmd[256];
-        #ifdef _WIN32
-          // Grab the standard user temp directory (e.g., C:\Users\Name\AppData\Local\Temp)
-          const char *win_tmp = getenv("TEMP");
-          if (!win_tmp) win_tmp = getenv("TMP");
-          if (!win_tmp) win_tmp = "."; // Hard fallback to local folder if env vars are missing       
-          snprintf(cleanup_cmd, sizeof(cleanup_cmd), "rmdir /s /q \"%s\\yf_sandbox_%d\"", win_tmp, getpid());
-        #else
-          // Targets the exact process ID used during the boot process
-          snprintf(cleanup_cmd, sizeof(cleanup_cmd), "rm -rf /tmp/yf_sandbox_%d", getpid());
-        #endif
-        system(cleanup_cmd);
-    }
     flush_sram();
     vm_shutdown(&vm);
     kit_destroy(ctx);
@@ -462,7 +452,8 @@ int main(int argc, char *argv[]) {
 /* to check for appended carts at the end of the executable (linux/windows)
  though clang with a linux target handles this well and mac depends on the Resources folder for "fused" carts, 
  clang with a windows target does not put this at the end of the executable, causing a false positive. 
- thus the only way we can fix this is by using the MinGW GCC compiler or rewrite the fused checker entirely */
+ thus the only way we can fix this is by using the MinGW GCC compiler or rewrite the fused checker entirely 
+ in which i do not feel like doing rn so yeah */
 const char end_of_executable[8] = {
     0xDE, 0xAD, 0xBE, 0xEF,
     0xCA, 0xFE, 0xBA, 0xBE

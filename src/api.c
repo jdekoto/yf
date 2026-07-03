@@ -495,6 +495,7 @@ static int l_tile(lua_State *L) {
     return 0;
 }
 
+/* experimental map functoin implementing layers */
 static int l_map(lua_State *L) {
     int stx = (int)luaL_checknumber(L, 1);
     int sty = (int)luaL_checknumber(L, 2);
@@ -502,6 +503,8 @@ static int l_map(lua_State *L) {
     int scy = (int)luaL_checknumber(L, 4);
     int tw  = (int)luaL_optinteger(L, 5, FB_WID / SPR_W);
     int th  = (int)luaL_optinteger(L, 6, FB_HEI / SPR_H);
+    
+    int layer = (int)luaL_optinteger(L, 7, 0);
 
     uint8_t current_bank = memory[REG_BANK_SW];
     if (current_bank > 1) current_bank = 0;
@@ -511,6 +514,10 @@ static int l_map(lua_State *L) {
     int      sheet_cols  = sheet_width / SPR_W;
     if (sheet_cols <= 0) return 0;
 
+    // calculate the memory offset for this specific layer stack
+    uint32_t layer_size = (uint32_t)(MAP_WIDTH * MAP_HEIGHT);
+    uint32_t layer_offset = (uint32_t)layer * layer_size;
+
     for (int ty = 0; ty < th; ty++) {
         int my = sty + ty;
         if (my < 0 || my >= MAP_HEIGHT) continue;
@@ -519,7 +526,8 @@ static int l_map(lua_State *L) {
             int mx = stx + tx;
             if (mx < 0 || mx >= MAP_WIDTH) continue;
 
-            uint8_t id = peek(ADDR_MAP + (uint32_t)(my * MAP_WIDTH + mx));
+            // inject the layer offset directly into your flat RAM reading address
+            uint8_t id = peek(ADDR_MAP + layer_offset + (uint32_t)(my * MAP_WIDTH + mx));
             if (id == 0) continue;
 
             int draw_x = scx + tx * SPR_W;
@@ -555,7 +563,7 @@ static int l_btn(lua_State *L) {
     int absolute_bit = btn_idx;
 
     // Read the live byte block where this bit resides
-    uint32_t live_mask = peek4(0x06440u);
+    uint32_t live_mask = peek4(ADDR_INPUT);
 
     lua_pushboolean(L, (live_mask & (1 << absolute_bit)) != 0);
     return 1;
@@ -567,8 +575,8 @@ static int l_btnp(lua_State *L) {
 
     int absolute_bit = btn_idx;
 
-    uint32_t live_mask = peek4(0x06440u);
-    uint32_t prev_mask = peek4(0x06444u);
+    uint32_t live_mask = peek4(ADDR_INPUT);
+    uint32_t prev_mask = peek4(ADDR_INPUT + 4);
 
     // Button is pressed now, but WAS NOT pressed on the previous frame loop
     bool pressed = ((live_mask & (1 << absolute_bit)) != 0) && 

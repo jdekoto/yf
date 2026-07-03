@@ -1,4 +1,5 @@
 tilemap = {}
+-- TODO: redo the tilemap and the map data to where we can test out the map layer system
 
 memcpy(0x1E900, include('assets/map/test.map'))
 memcpy(0x0A900, include('assets/sprites/tiles.raw'))

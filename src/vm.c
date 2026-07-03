@@ -108,6 +108,21 @@ void vm_load(VM *vm, const char *path) {
     call_fn(vm->L, "_boot");
 }
 
+void vm_execute(VM *vm, const char* buf, int len, const char* name) {
+    // borrowed directly from BIOS code
+    if (luaL_loadbuffer(vm->L, buf, len, name) != LUA_OK) {
+        printf("[BOOT] CANNOT load binary: %s\n", lua_tostring(vm->L, -1));
+        lua_close(vm->L);
+    }
+
+    // execute the bytecode
+    if (lua_pcall(vm->L, 0, LUA_MULTRET, 0) != LUA_OK) {
+        printf("[BOOT] Error executing ROM: %s\n", lua_tostring(vm->L, -1));
+        lua_close(vm->L);
+    }
+    call_fn(vm->L, "_boot");
+}
+
 void vm_update  (VM *vm) { 
     g_ops       = 0;
     g_cpu_limit = false;

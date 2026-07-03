@@ -16,6 +16,7 @@ typedef struct { lua_State *L; } VM;
 void vm_init    (VM *vm);
 void vm_runtime (VM *vm);
 void vm_load    (VM *vm, const char *path);
+void vm_execute (VM *vm, const char* buf, int len, const char* name);
 void vm_update  (VM *vm);
 void vm_shutdown(VM *vm);
 void vm_reload  (VM *vm, const char *path);
