@@ -38,8 +38,6 @@
 // Standard RGB565 packing (5 bits Red, 6 bits Green, 5 bits Blue)
 #define RGB_CONVERT(r, g, b) ((((r) >> 3) << 11) | (((g) >> 2) << 5) | ((b) >> 3))
 
-
-void flush_sram(void);
 /* call once in vm_init() after luaL_openlibs()
    registers all graphics, input, and tilemap functions into _G
    along with ADDR_* and BTN_* constants. */
