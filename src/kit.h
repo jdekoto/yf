@@ -3,13 +3,6 @@
 #ifndef KIT_H
 #define KIT_H
 
-#ifdef _WIN32
-  #include <SDL2/SDL.h>  
-  #include <SDL2/SDL_main.h>
-#else
-  #include <SDL2/SDL.h>  
-#endif
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -21,50 +14,11 @@
 #include <math.h>
 #include "mem.h"
 
-enum {
-    KIT_SCALE2X    = (1 << 0),
-    KIT_SCALE3X    = (1 << 1),
-    KIT_SCALE4X    = (1 << 2),
-    KIT_HIDECURSOR = (1 << 3),
-    KIT_FPS30      = (1 << 4),
-    KIT_FPS45      = (1 << 5),
-    KIT_FPS144     = (1 << 6),
-    KIT_FPSINF     = (1 << 7),
-};
-
 typedef union { struct { uint8_t b, g, r, a; }; uint32_t w; } kit_Color;
 typedef struct { int x, y, w, h; } kit_Rect;
 typedef struct { kit_Color *pixels; int w, h; } kit_Image;
 typedef struct { kit_Rect rect; int xadv; } kit_Glyph;
 typedef struct { kit_Image *image; kit_Glyph glyphs[256]; } kit_Font;
-
-typedef struct {
-    bool wants_quit;
-    bool hide_cursor;
-    // input
-    int char_buf[32];
-    uint8_t key_state[256];
-    uint8_t mouse_state[16];
-    struct { int x, y; } mouse_pos;
-    struct { int x, y; } mouse_delta;
-    SDL_GameController *pad1;
-    SDL_GameController *pad2;
-    // time
-    double step_time;
-    double prev_time;
-    // graphics
-    kit_Rect clip;
-    kit_Font *font;
-    kit_Image *screen;
-    // windows
-    int win_w, win_h;
-    SDL_Window* window;
-    SDL_Renderer* renderer;
-    SDL_Texture* texture;
-
-} kit_Context;
-
-uint16_t framebuf[FB_WID * FB_HEI];
 
 #define kit_max(a, b) ((a) > (b) ? (a) : (b))
 #define kit_min(a, b) ((a) < (b) ? (a) : (b))
@@ -79,9 +33,6 @@ uint16_t framebuf[FB_WID * FB_HEI];
 #define KIT_WHITE    kit_rgb(0xff, 0xff, 0xff)
 #define KIT_BLACK    kit_rgb(0, 0, 0)
 
-kit_Context* kit_create(const char *title, int w, int h, int flags);
-void kit_destroy(kit_Context *ctx);
-bool kit_step(kit_Context *ctx, double *dt);
 void* kit_read_file(char *filename, int *len);
 
 kit_Image* kit_create_image(int w, int h);
@@ -94,38 +45,11 @@ kit_Font* kit_load_font_mem(void *data, int len);
 void kit_destroy_font(kit_Font *font);
 int kit_text_width(kit_Font *font, char *text);
 
-int  kit_get_char(kit_Context *ctx);
-bool kit_key_down(kit_Context *ctx, int key);
-bool kit_key_pressed(kit_Context *ctx, int key);
-bool kit_key_released(kit_Context *ctx, int key);
-void kit_mouse_pos(kit_Context *ctx, int *x, int *y);
-void kit_mouse_delta(kit_Context *ctx, int *x, int *y);
-bool kit_mouse_down(kit_Context *ctx, int button);
-bool kit_mouse_pressed(kit_Context *ctx, int button);
-bool kit_mouse_released(kit_Context *ctx, int button);
-
-void kit_clear(kit_Context *ctx, kit_Color color);
-void kit_set_clip(kit_Context *ctx, kit_Rect rect);
-void kit_draw_point(kit_Context *ctx, kit_Color color, int x, int y);
-void kit_draw_rect(kit_Context *ctx, kit_Color color, kit_Rect rect);
-void kit_draw_line(kit_Context *ctx, kit_Color color, int x1, int y1, int x2, int y2);
-void kit_draw_image(kit_Context *ctx, kit_Image *img, int x, int y);
-void kit_draw_image2(kit_Context *ctx, kit_Color color, kit_Image *img, int x, int y, kit_Rect src);
-void kit_draw_image3(kit_Context *ctx, kit_Color mul_color, kit_Color add_color, kit_Image *img, kit_Rect dst, kit_Rect src);
-int  kit_draw_text(kit_Context *ctx, kit_Color color, char *text, int x, int y);
-int  kit_draw_text2(kit_Context *ctx, kit_Color color, kit_Font *font, char *text, int x, int y);
-
 #endif // KIT_H
 
 //////////////////////////////////////////////////////////////////////////////
 
 #ifdef KIT_IMPL
-
-enum {
-    KIT_INPUT_DOWN     = (1 << 0),
-    KIT_INPUT_PRESSED  = (1 << 1),
-    KIT_INPUT_RELEASED = (1 << 2),
-};
 
 #define kit__expect(x) if (!(x)) { kit__panic("assertion failure: %s", #x); }
 
@@ -143,33 +67,6 @@ static void* kit__alloc(int n) {
     if (!res) { kit__panic("out of memory"); }
     return res;
 }
-
-
-static bool kit__check_input_flag(uint8_t *t, uint32_t idx, uint32_t cap, int flag) {
-    if (idx > cap) { return false; }
-    return t[idx] & flag ? true : false;
-}
-
-
-static void kit__scale_size_by_flags(int *w, int *h, int flags) {
-    if (flags & KIT_SCALE2X) { *w *= 2; *h *= 2; } else
-    if (flags & KIT_SCALE3X) { *w *= 3; *h *= 3; } else
-    if (flags & KIT_SCALE4X) { *w *= 4; *h *= 4; }
-}
-
-
-static double kit__flags_to_step_time(int flags) {
-    if (flags & KIT_FPS30 ) { return 1.0 /  30.0; }
-    if (flags & KIT_FPS45 ) { return 1.0 /  45.0; }
-    if (flags & KIT_FPS144) { return 1.0 / 144.0; }
-    if (flags & KIT_FPSINF) { return 0; }
-    return 1.0 / 60.0;
-}
-
-static double kit__now(void) {
-    return SDL_GetTicks64() / 1000.0;
-}
-
 
 static kit_Rect kit__intersect_rects(kit_Rect a, kit_Rect b) {
     int x1 = kit_max(a.x, b.x);
@@ -206,157 +103,8 @@ static inline kit_Color kit__blend_pixel3(kit_Color dst, kit_Color src, kit_Colo
   return kit__blend_pixel2(dst, src, clr);
 }
 
-
-static kit_Rect kit__get_adjusted_window_rect(kit_Context *ctx) {
-    // work out maximum size to retain aspect ratio
-    float src_ar = (float) ctx->screen->h / ctx->screen->w;
-    float dst_ar = (float) ctx->win_h / ctx->win_w;
-    int w, h;
-    if (src_ar < dst_ar) {
-        w = ctx->win_w; h = ceil(w * src_ar);
-    } else {
-        h = ctx->win_h; w = ceil(h / src_ar);
-    }
-    // return centered rect
-    return kit_rect((ctx->win_w - w) / 2, (ctx->win_h - h) / 2, w, h);
-}
-
-
-static void kit__wndproc(kit_Context *ctx, SDL_Event *e) {
-
-    switch (e->type) {
-
-    case SDL_KEYDOWN:
-        ctx->key_state[(uint8_t) e->key.keysym.scancode] = KIT_INPUT_DOWN | KIT_INPUT_PRESSED;
-        break;
-
-    case SDL_KEYUP:
-        ctx->key_state[(uint8_t) e->key.keysym.scancode] &= ~KIT_INPUT_DOWN;
-        ctx->key_state[(uint8_t) e->key.keysym.scancode] |= KIT_INPUT_RELEASED;
-        break;
-        
-    case SDL_CONTROLLERDEVICEADDED:
-        int device_index = e->cdevice.which;
-        if (!ctx->pad1) {
-            ctx->pad1 = SDL_GameControllerOpen(device_index);
-            printf("[ENGINE] P1 Connected: %s\n", SDL_GameControllerName(ctx->pad1));
-        } else if (!ctx->pad2) {
-            ctx->pad2 = SDL_GameControllerOpen(device_index);
-            printf("[ENGINE] P2 Connected: %s\n", SDL_GameControllerName(ctx->pad2));
-        }
-        break;
-        
-    case SDL_CONTROLLERDEVICEREMOVED:
-        SDL_JoystickID instance_id = e->cdevice.which;
-        if (ctx->pad1 && SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(ctx->pad1)) == instance_id) {
-            SDL_GameControllerClose(ctx->pad1);
-            ctx->pad1 = NULL;
-            printf("[ENGINE] Player 1 Disconnected\n");
-        }
-        else if (ctx->pad2 && SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(ctx->pad2)) == instance_id) {
-            SDL_GameControllerClose(ctx->pad2);
-            ctx->pad2 = NULL;
-            printf("[ENGINE] Player 2 Disconnected\n");
-        }
-        break;
-        
-    case SDL_TEXTINPUT:
-        for (int i,j = 0; i < kit_lengthof(ctx->char_buf); i++) {
-            if (ctx->char_buf[i]) { continue; }
-            if (! e->text.text[j]) { break; }
-            ctx->char_buf[i] = e->text.text[j];
-            j++;
-        }
-        break;
-    case SDL_MOUSEBUTTONDOWN:
-    case SDL_MOUSEBUTTONUP:
-        if (e->button.state == SDL_PRESSED) {
-            SDL_CaptureMouse(true);
-            ctx->mouse_state[e->button.button] = KIT_INPUT_DOWN | KIT_INPUT_PRESSED;
-        } else {
-            SDL_CaptureMouse(false);
-            ctx->mouse_state[e->button.button] &= ~KIT_INPUT_DOWN;
-        }
-        // fallthrough
-
-    case SDL_MOUSEMOTION:;
-        kit_Rect wr = kit__get_adjusted_window_rect(ctx);
-        int prevx = ctx->mouse_pos.x;
-        int prevy = ctx->mouse_pos.y;
-        int mx,my;
-        SDL_GetMouseState( &mx, &my );
-        ctx->mouse_pos.x = (mx - wr.x) * ctx->screen->w / wr.w;
-        ctx->mouse_pos.y = (my - wr.y) * ctx->screen->h / wr.h;
-        ctx->mouse_delta.x += ctx->mouse_pos.x - prevx;
-        ctx->mouse_delta.y += ctx->mouse_pos.y - prevy;
-        break;
-
-    case SDL_WINDOWEVENT:
-        switch (e->window.event) {
-        case SDL_WINDOWEVENT_RESIZED:
-            // set size
-            ctx->win_w = e->window.data1;
-            ctx->win_h = e->window.data2;
-            break;
-        }
-        break;
-
-    case SDL_QUIT:
-        ctx->wants_quit = true;
-        break;
-    }
-
-    return;
-}
-
-
 static void *kit__font_png_data;
 static int   kit__font_png_size;
-
-kit_Context* kit_create(const char *title, int w, int h, int flags) {
-    kit_Context *ctx = kit__alloc(sizeof(kit_Context));
-
-    ctx->screen = kit_create_image(w, h);
-    ctx->step_time = kit__flags_to_step_time(flags);
-    ctx->hide_cursor = !!(flags & KIT_HIDECURSOR);
-    ctx->clip = kit_rect(0, 0, w, h);
-
-    kit__scale_size_by_flags(&w, &h, flags);
-    ctx->win_w = w;
-    ctx->win_h = h;
-    
-    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER) < 0) {
-        printf("SDL could not initialize! SDL_Error: %s\n", SDL_GetError());
-    } else {
-        ctx->window = SDL_CreateWindow(title, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, ctx->win_w, ctx->win_h, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
-        if(ctx->window == NULL) {
-            printf("Window could not be created! SDL_Error: %s\n", SDL_GetError());
-        } else {
-            ctx->renderer = SDL_CreateRenderer(ctx->window, -1, 0);
-            ctx->texture = SDL_CreateTexture(ctx->renderer, SDL_PIXELFORMAT_RGB565, SDL_TEXTUREACCESS_STATIC, ctx->screen->w, ctx->screen->h);
-
-            SDL_ShowCursor(!ctx->hide_cursor);
-
-        }
-    }
-
-    ctx->font = kit_load_font_mem(kit__font_png_data, kit__font_png_size);
-    ctx->prev_time = kit__now();
-
-    return ctx;
-}
-
-
-void kit_destroy(kit_Context *ctx) {
-    SDL_DestroyTexture(ctx->texture);
-    SDL_DestroyRenderer(ctx->renderer);
-    SDL_DestroyWindow( ctx->window );
-
-    kit_destroy_font(ctx->font);
-    free(ctx);
-    SDL_Quit();
-}
-
 
 int kit_text_width(kit_Font *font, char *text) {
     int x = 0;
@@ -364,47 +112,6 @@ int kit_text_width(kit_Font *font, char *text) {
         x += font->glyphs[*p].xadv;
     }
     return x;
-}
-
-
-bool kit_step(kit_Context *ctx, double *dt) {
-    // present
-    kit_Rect wr = kit__get_adjusted_window_rect(ctx);
-    SDL_Rect dst = { wr.x, wr.y, wr.w, wr.h };
-
-    // connecting kit texture to our framebuffer
-    SDL_UpdateTexture(ctx->texture, NULL, framebuf, ctx->screen->w * sizeof(uint16_t));
-    SDL_RenderClear(ctx->renderer);
-    SDL_RenderCopy(ctx->renderer, ctx->texture, NULL, &dst);
-    SDL_RenderPresent(ctx->renderer);
-
-    // handle delta time / wait for next frame
-    double now = kit__now();
-    double wait = (ctx->prev_time + ctx->step_time) - now;
-    double prev = ctx->prev_time;
-    if (wait > 0) {
-        SDL_Delay(wait * 1000);
-        ctx->prev_time += ctx->step_time;
-    } else {
-        ctx->prev_time = now;
-    }
-    if (dt) { *dt = ctx->prev_time - prev; }
-
-    // reset input state
-    memset(ctx->char_buf, 0, sizeof(ctx->char_buf));
-    for (int i = 0; i < sizeof(ctx->key_state); i++) {
-        ctx->key_state[i] &= ~(KIT_INPUT_PRESSED | KIT_INPUT_RELEASED);
-    }
-    for (int i = 0; i < sizeof(ctx->mouse_state); i++) {
-        ctx->key_state[i] &= ~(KIT_INPUT_PRESSED | KIT_INPUT_RELEASED);
-    }
-
-    // handle events
-    SDL_Event e; 
-    while (SDL_PollEvent(&e)) {
-        kit__wndproc(ctx, &e);
-    }
-    return !ctx->wants_quit;
 }
 
 
@@ -515,191 +222,6 @@ kit_Font* kit_load_font_mem(void *data, int len) {
 void kit_destroy_font(kit_Font *font) {
     free(font->image);
     free(font);
-}
-
-
-int kit_get_char(kit_Context *ctx) {
-    for (int i = 0; i < kit_lengthof(ctx->char_buf); i++) {
-        if (!ctx->char_buf[i]) { continue; }
-        int res = ctx->char_buf[i];
-        ctx->char_buf[i] = 0;
-        return res;
-    }
-    return 0;
-}
-
-
-bool kit_key_down(kit_Context *ctx, int key) {
-    return kit__check_input_flag(ctx->key_state, key, sizeof(ctx->key_state), KIT_INPUT_DOWN);
-}
-
-
-bool kit_key_pressed(kit_Context *ctx, int key) {
-    return kit__check_input_flag(ctx->key_state, key, sizeof(ctx->key_state), KIT_INPUT_PRESSED);
-}
-
-
-bool kit_key_released(kit_Context *ctx, int key) {
-    return kit__check_input_flag(ctx->key_state, key, sizeof(ctx->key_state), KIT_INPUT_RELEASED);
-}
-
-
-void kit_mouse_pos(kit_Context *ctx, int *x, int *y) {
-    if (x) { *x = ctx->mouse_pos.x; }
-    if (y) { *y = ctx->mouse_pos.y; }
-}
-
-
-void kit_mouse_delta(kit_Context *ctx, int *x, int *y) {
-    if (x) { *x = ctx->mouse_delta.x; }
-    if (y) { *y = ctx->mouse_delta.y; }
-}
-
-
-bool kit_mouse_down(kit_Context *ctx, int button) {
-    return kit__check_input_flag(ctx->mouse_state, button, sizeof(ctx->mouse_state), KIT_INPUT_DOWN);
-}
-
-
-bool kit_mouse_pressed(kit_Context *ctx, int button) {
-    return kit__check_input_flag(ctx->mouse_state, button, sizeof(ctx->mouse_state), KIT_INPUT_PRESSED);
-}
-
-
-bool kit_mouse_released(kit_Context *ctx, int button) {
-    return kit__check_input_flag(ctx->mouse_state, button, sizeof(ctx->mouse_state), KIT_INPUT_RELEASED);
-}
-
-
-void kit_clear(kit_Context *ctx, kit_Color color) {
-    kit_draw_rect(ctx, color, KIT_BIG_RECT);
-}
-
-
-void kit_set_clip(kit_Context *ctx, kit_Rect rect) {
-    kit_Rect screen_rect = kit_rect(0, 0, ctx->screen->w, ctx->screen->h);
-    ctx->clip = kit__intersect_rects(rect, screen_rect);
-}
-
-
-void kit_draw_point(kit_Context *ctx, kit_Color color, int x, int y) {
-    if (color.a == 0) { return; }
-    kit_Rect r = ctx->clip;
-    if (x < r.x || y < r.y || x >= r.x + r.w || y >= r.y + r.h ) {
-        return;
-    }
-    kit_Color *dst = &ctx->screen->pixels[x + y * ctx->screen->w];
-    *dst = kit__blend_pixel(*dst, color);
-}
-
-
-void kit_draw_rect(kit_Context *ctx, kit_Color color, kit_Rect rect) {
-    if (color.a == 0) { return; }
-    rect = kit__intersect_rects(rect, ctx->clip);
-    kit_Color *d = &ctx->screen->pixels[rect.x + rect.y * ctx->screen->w];
-    int dr = ctx->screen->w - rect.w;
-    for (int y = 0; y < rect.h; y++) {
-        for (int x = 0; x < rect.w; x++) {
-            *d = kit__blend_pixel(*d, color);
-            d++;
-        }
-        d += dr;
-    }
-}
-
-
-void kit_draw_line(kit_Context *ctx, kit_Color color, int x1, int y1, int x2, int y2) {
-    int dx = abs(x2-x1);
-    int sx = x1 < x2 ? 1 : -1;
-    int dy = -abs(y2 - y1);
-    int sy = y1 < y2 ? 1 : -1;
-    int err = dx + dy;
-    for (;;) {
-        kit_draw_point(ctx, color, x1, y1);
-        if (x1 == x2 && y1 == y2) { break; }
-        int e2 = err << 1;
-        if (e2 >= dy) { err += dy; x1 += sx; }
-        if (e2 <= dx) { err += dx; y1 += sy; }
-    }
-}
-
-
-void kit_draw_image(kit_Context *ctx, kit_Image *img, int x, int y) {
-    kit_Rect dst = kit_rect(x, y, img->w, img->h);
-    kit_Rect src = kit_rect(0, 0, img->w, img->h);
-    kit_draw_image3(ctx, KIT_WHITE, KIT_BLACK, img, dst, src);
-}
-
-
-void kit_draw_image2(kit_Context *ctx, kit_Color color, kit_Image *img, int x, int y, kit_Rect src) {
-    kit_Rect dst = kit_rect(x, y, abs(src.w), abs(src.h));
-    kit_draw_image3(ctx, color, KIT_BLACK, img, dst, src);
-}
-
-
-void kit_draw_image3(kit_Context *ctx, kit_Color mul_color, kit_Color add_color, kit_Image *img, kit_Rect dst, kit_Rect src) {
-    // early exit on zero-sized anything
-    if (!src.w || !src.w || !dst.w || !dst.h) {
-        return;
-    }
-
-    /* do scaled render */
-    int cx1 = ctx->clip.x;
-    int cy1 = ctx->clip.y;
-    int cx2 = cx1 + ctx->clip.w;
-    int cy2 = cy1 + ctx->clip.h;
-    int stepx = (src.w << 10) / dst.w;
-    int stepy = (src.h << 10) / dst.h;
-    int sy = src.y << 10;
-
-    /* vertical clipping */
-    int dy = dst.y;
-    if (dy < cy1) { sy += (cy1 - dy) * stepy; dy = cy1; }
-    int ey = kit_min(cy2, dst.y + dst.h);
-
-    int blend_fn = 1;
-    if (mul_color.w != 0xffffffff) { blend_fn = 2; }
-    if ((add_color.w & 0xffffff00) != 0xffffff00) { blend_fn = 3; }
-
-    for (; dy < ey; dy++) {
-        if (dy >= cy1 && dy < cy2) {
-            int sx = src.x << 10;
-            kit_Color *srow = &img->pixels[(sy >> 10) * img->w];
-            kit_Color *drow = &ctx->screen->pixels[dy * ctx->screen->w];
-
-            /* horizontal clipping */
-            int dx = dst.x;
-            if (dx < cx1) { sx += (cx1 - dx) * stepx; dx = cx1; }
-            int ex = kit_min(cx2, dst.x + dst.w);
-
-            for (; dx < ex; dx++) {
-                kit_Color *s = &srow[sx >> 10];
-                kit_Color *d = &drow[dx];
-                switch (blend_fn) {
-                case 1: *d = kit__blend_pixel (*d, *s); break;
-                case 2: *d = kit__blend_pixel2(*d, *s, mul_color); break;
-                case 3: *d = kit__blend_pixel3(*d, *s, mul_color, add_color); break;
-                }
-                sx += stepx;
-            }
-        }
-        sy += stepy;
-    }
-}
-
-
-int kit_draw_text(kit_Context *ctx, kit_Color color, char *text, int x, int y) {
-    return kit_draw_text2(ctx, color, ctx->font, text, x, y);
-}
-
-
-int kit_draw_text2(kit_Context *ctx, kit_Color color, kit_Font *font, char *text, int x, int y) {
-    for (uint8_t *p = (void*) text; *p; p++) {
-        kit_Glyph g = font->glyphs[*p];
-        kit_draw_image2(ctx, color, font->image, x, y, g.rect);
-        x += g.xadv;
-    }
-    return x;
 }
 
 

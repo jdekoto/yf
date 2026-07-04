@@ -1,5 +1,19 @@
 // main.c
 #define KIT_IMPL
+#define SOKOL_IMPL
+#ifdef _WIN32
+  #define SOKOL_D3D11
+  #include <d3d11.h>
+#elif defined(__APPLE__)
+  #define SOKOL_METAL
+#else
+  #define SOKOL_GLCORE
+#endif
+#include "sokol_app.h"
+#include "sokol_gfx.h"
+#include "sokol_glue.h"
+#include "sokol_framebuffer.h"
+#include "sokol_letterbox.h"
 #include "kit.h"
 #include "mem.h"
 #include "vm.h"
@@ -24,6 +38,7 @@
     #define getpid _getpid
     // Force mkdir to drop the mode argument on Windows
     #define mkdir(path) _mkdir(path) 
+  
 #else
     #include <unistd.h>
     #include <sys/stat.h>
@@ -32,7 +47,11 @@
 #endif
 
 static VM vm;
+uint16_t framebuf[FB_WID * FB_HEI];
 static bool is_yfc = false;
+static bool empty_rom = false;
+static bool single = false;
+static char game_path[512];
 static char game_title[32];
 static char game_id[8];
 
@@ -82,7 +101,31 @@ void fb_expand(uint16_t *dst) {
     }
 }
 
-void map_inputs(kit_Context *ctx) {
+// Define a safe max index. 512 leaves plenty of buffer room.
+#define KEY_MAX 512
+
+static bool key_state[KEY_MAX];
+
+void event(const sapp_event *e) {
+    if (e->type == SAPP_EVENTTYPE_KEY_DOWN) {
+        // Ensure index is within our array bounds
+        if (e->key_code < KEY_MAX) {
+            key_state[e->key_code] = true;
+        }
+    } 
+    else if (e->type == SAPP_EVENTTYPE_KEY_UP) {
+        if (e->key_code < KEY_MAX) {
+            key_state[e->key_code] = false;
+        }
+    }
+}
+
+static inline bool kdown(int code) { 
+    return (code >= 0 && code < KEY_MAX) ? key_state[code] : false; 
+}
+
+
+void map_inputs(void) {
     // Refresh controller connection states
     
     poke(0x06444, peek(0x06440));
@@ -94,16 +137,17 @@ void map_inputs(kit_Context *ctx) {
 
     // --- PLAYER 1 SUB-MASK MAPPING (Bits 0-8) ---
     uint16_t p1_mask = 0;
-    if (kit_key_down(ctx, SDL_SCANCODE_LEFT))    p1_mask |= (1 << 0);
-    if (kit_key_down(ctx, SDL_SCANCODE_RIGHT))   p1_mask |= (1 << 1);
-    if (kit_key_down(ctx, SDL_SCANCODE_UP))      p1_mask |= (1 << 2);
-    if (kit_key_down(ctx, SDL_SCANCODE_DOWN))    p1_mask |= (1 << 3);
-    if (kit_key_down(ctx, SDL_SCANCODE_A))       p1_mask |= (1 << 4); 
-    if (kit_key_down(ctx, SDL_SCANCODE_S))       p1_mask |= (1 << 5); 
-    if (kit_key_down(ctx, SDL_SCANCODE_Z))       p1_mask |= (1 << 6); 
-    if (kit_key_down(ctx, SDL_SCANCODE_X))       p1_mask |= (1 << 7); 
-    if (kit_key_down(ctx, SDL_SCANCODE_RETURN))  p1_mask |= (1 << 8);
+    if (kdown(SAPP_KEYCODE_LEFT))    p1_mask |= (1 << 0);
+    if (kdown(SAPP_KEYCODE_RIGHT))   p1_mask |= (1 << 1);
+    if (kdown(SAPP_KEYCODE_UP))      p1_mask |= (1 << 2);
+    if (kdown(SAPP_KEYCODE_DOWN))    p1_mask |= (1 << 3);
+    if (kdown(SAPP_KEYCODE_A))       p1_mask |= (1 << 4); 
+    if (kdown(SAPP_KEYCODE_S))       p1_mask |= (1 << 5); 
+    if (kdown(SAPP_KEYCODE_Z))       p1_mask |= (1 << 6); 
+    if (kdown(SAPP_KEYCODE_X))       p1_mask |= (1 << 7); 
+    if (kdown(SAPP_KEYCODE_ENTER))   p1_mask |= (1 << 8);
 
+    /*
     if (ctx->pad1) {
         if (SDL_GameControllerGetButton(ctx->pad1, SDL_CONTROLLER_BUTTON_DPAD_LEFT))   p1_mask |= (1 << 0);
         if (SDL_GameControllerGetButton(ctx->pad1, SDL_CONTROLLER_BUTTON_DPAD_RIGHT))  p1_mask |= (1 << 1);
@@ -123,9 +167,10 @@ void map_inputs(kit_Context *ctx) {
         if (ay < -16000) p1_mask |= (1 << 2);
         if (ay >  16000) p1_mask |= (1 << 3);
     }
+    */
     final_mask |= p1_mask;
 
-    // --- PLAYER 2 SUB-MASK MAPPING (Bits 0-8 local, then shifted up) ---
+    /* --- PLAYER 2 SUB-MASK MAPPING (Bits 0-8 local, then shifted up) ---
     uint16_t p2_mask = 0;
     // as of right now, you will need two controllers to do two player, needa figure out kbd mappings
     
@@ -150,12 +195,13 @@ void map_inputs(kit_Context *ctx) {
     
     // Shift Player 2 inputs up precisely past Player 1's Start key slot
     final_mask |= ((uint32_t)p2_mask << 9);
-
+    */
     // 3. Poke the 32-bit aggregated mask cleanly across the 4 sequential bytes
     poke(0x06440, (uint8_t)(final_mask & 0xFF));
     poke(0x06441, (uint8_t)((final_mask >> 8) & 0xFF));
     poke(0x06442, (uint8_t)((final_mask >> 16) & 0xFF));
     poke(0x06443, (uint8_t)((final_mask >> 24) & 0xFF));
+    
 }
 
 // --- AUTOMATED ENGINE SRAM PERSISTENCE LAYER ---
@@ -477,17 +523,91 @@ static const char *find_resources_cart(const char *exe_path) {
 }
 #endif
 
-int main(int argc, char *argv[]) {
+
+static sg_pass_action pass_action;
+static sfb_framebuffer fb;
+static uint32_t fb_rgba[FB_WID * FB_HEI]; 
+
+void init(void) {
     
     // initiate the system before argument handling
     mem_init();
     spu_init();
     vm_init(&vm);
     
-    // first are we fused?
-    long fused_offset = find_appended(argv[0]);
+    if (empty_rom) { vm_bios(&vm); }
+    if (is_yfc) { yfc_boot(&vm, game_path, 0); }
+  
+    sg_setup(&(sg_desc){
+        .environment = sglue_environment(),
+        .logger.func = slog_func,
+    });
+    sfb_setup(&(sfb_desc){ .logger.func = slog_func });
     
-    /* mac resources bundle check */
+    fb = sfb_make_framebuffer(&(sfb_framebuffer_desc){
+        .width  = FB_WID,
+        .height = FB_HEI,
+        .format = SFB_FORMAT_RGBA8,     /* default, but explicit is clearer */
+        .prescale = 4,                    /* replaces KIT_SCALE4X */
+    });
+
+    pass_action.colors[0] = (sg_color_attachment_action){
+    .load_action = SG_LOADACTION_CLEAR,
+    .clear_value = { 0, 0, 0, 1 },
+};
+}
+
+static void expand_rgb565_to_rgba8(const uint16_t *src, uint32_t *dst, int count) {
+    for (int i = 0; i < count; i++) {
+        uint16_t px = src[i];
+        uint8_t r5 = (px >> 11) & 0x1F;
+        uint8_t g6 = (px >> 5)  & 0x3F;
+        uint8_t b5 =  px        & 0x1F;
+
+        /* bit-replicate up to 8 bits, standard RGB565->RGB888 expansion */
+        uint8_t r8 = (r5 << 3) | (r5 >> 2);
+        uint8_t g8 = (g6 << 2) | (g6 >> 4);
+        uint8_t b8 = (b5 << 3) | (b5 >> 2);
+
+        dst[i] = (uint32_t)0xFF << 24 | (uint32_t)b8 << 16 | (uint32_t)g8 << 8 | r8;
+    }
+}
+
+void frame(void) {
+    if (!is_yfc && !single ) { vm_reload(&vm, "boot.lua"); }
+    if (single) { vm_reload(&vm, game_path); }
+    vm_update(&vm);
+    fb_expand(framebuf);
+    map_inputs();
+    /* fb to rgba8 conversion */
+    expand_rgb565_to_rgba8(framebuf, fb_rgba, FB_WID * FB_HEI);
+
+    sfb_update(fb, &(sfb_update_desc){
+        .pixels = SG_RANGE(fb_rgba),
+    });
+    
+    slbx_viewport vp = slbx_letterbox(sapp_width(), sapp_height(), &(slbx_letterbox_desc){
+        .content_aspect_ratio = (float)FB_WID / (float)FB_HEI,
+    });
+    
+    sg_begin_pass(&(sg_pass){ .action = pass_action, .swapchain = sglue_swapchain() });
+    sg_apply_viewport(vp.x, vp.y, vp.width, vp.height, true);
+    sfb_render_ex(fb, &(sfb_render_desc){ .use_nearest_filter = true });
+    sg_end_pass();
+    sg_commit();
+    
+}
+
+void cleanup(void) {
+    dump_sram(&vm);
+    vm_shutdown(&vm);
+    spu_shutdown();
+}
+
+static void on_launch(int argc, char *argv[]) {
+    // first are we fused?
+    /* fuckass windows broke again so we gon redo the entire system
+    i think the macos method could work out but for now we'll disable appending
     #ifdef __APPLE__
     {
         const char *res_cart = find_resources_cart(argv[0]);
@@ -497,11 +617,11 @@ int main(int argc, char *argv[]) {
             strncpy(vm.id, game_id, 8);
             load_sram(&vm);
             yfc_boot(&vm, res_cart, 0);
-            goto launch_window;
+            return;
         }
     }
-    /*
     #else
+      long fused_offset = find_appended(argv[0]);
       if (fused_offset >= 0) {
           printf("[ENGINE] Fused game stream payload identified at byte offset: %ld\n", fused_offset);
           is_yfc = true;
@@ -513,12 +633,13 @@ int main(int argc, char *argv[]) {
           yfc_boot(&vm, argv[0], fused_offset);
           goto launch_window;
       }
-    */
+    
     #endif
-
+    */
+    
     if (argc < 2) {
-        vm_bios(&vm);
-        goto launch_window;
+        empty_rom = true;
+        return;
     }
     
     if (strcmp(argv[1], "--help") == 0) {
@@ -527,22 +648,22 @@ int main(int argc, char *argv[]) {
         "To run a folder:    ./yf <cassette_folder>\n"
         "To pack a cart:     ./yf --package <cassette_folder> <cassette_name>\n"
         );
-        
-        return 1;
+        exit(1);
     }
 
     // --- HANDLE PACKAGING ARGUMENT ---
-    const char *target = argv[1];
     
     if (strcmp(argv[1], "--package") == 0) {
         if (argc < 3) {
             printf("Error: Please specify a folder to package.\n");
-            return 1;
+            exit(1);
         }
         printf("Packaging %s into a standalone .yfc cartridge...\n", argv[2]);
         yfc_pack(argv[2], argv[3]);
-        return 0;
+        exit(0);
     }
+    
+    const char *target = argv[1];
     
     // --- RUNNING ANYTHING ---
     if (has_extension(target, ".yfc")) {
@@ -550,46 +671,31 @@ int main(int argc, char *argv[]) {
         title_handler(target, 0);
         strncpy(vm.id, game_id, 8);
         load_sram(&vm);
-        yfc_boot(&vm, target, 0);
+        strncpy(game_path, target, 512);
      } else if (has_extension(target, ".lua")) {
-        is_yfc = false;
-        vm_load(&vm, target);
+        single = true;
+        strncpy(game_path, target, 512);
      } else {
-        is_yfc = false;
         if (chdir(target) != 0) {
             printf("ERROR: Could not open or find cartridge folder: %s\n", target);
-            return 1;
+            exit(1);
         }
         title_handler(target, 0);
         strncpy(vm.id, game_id, 8);
         load_sram(&vm);
      }
-    // i really like goto's now :)
-    launch_window:
-    
-    kit_Context *ctx = kit_create(game_title, FB_WID, FB_HEI, KIT_SCALE4X);
-    double dt;
-    while (kit_step(ctx, &dt)) {
-    
-        if (!is_yfc) { vm_reload(&vm, "boot.lua"); }
-        map_inputs(ctx);
-        fb_expand(framebuf); 
-        vm_update(&vm);
-    
-    }
-    dump_sram(&vm);
-    vm_shutdown(&vm);
-    kit_destroy(ctx);
-    return 0;
 }
 
-/* to check for appended carts at the end of the executable (linux/windows)
- though clang with a linux target handles this well and mac depends on the Resources folder for "fused" carts, 
- clang with a windows target does not put this at the end of the executable, causing a false positive. 
- thus the only way we can fix this is by using the MinGW GCC compiler or rewrite the fused checker entirely 
- in which i do not feel like doing rn so yeah */
-const char end_of_executable[8] = {
-    0xDE, 0xAD, 0xBE, 0xEF,
-    0xCA, 0xFE, 0xBA, 0xBE
-};
+sapp_desc sokol_main(int argc, char *argv[]) {
+    on_launch(argc, argv);
+    return (sapp_desc){
+        .init_cb = init,
+        .frame_cb = frame,
+        .cleanup_cb = cleanup,
+        .event_cb = event,
+        .width = FB_WID * 4,
+        .height = FB_HEI * 4,
+        .window_title = game_title,
+    };
+}
 

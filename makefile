@@ -1,15 +1,19 @@
 
 CC = clang
-WINCC = x86_64-w64-mingw32-gcc
-CFLAGS = -std=c11 -Wall -Wextra -O3 -flto \
-         -Isrc -Ivendor/lua \
-         
-LIBS = -lSDL2 -lm
 
-WIN_LDF = -lmingw32 -lSDL2main -lSDL2 -mwindows -lkernel32 \
+FLAGS = -std=c11 -Wall -Wextra -O3 -flto -Isrc -Ivendor/lua \
+	-lSDL2 -lm -lGL -ldl -lm -lpthread -lX11 -lXi -lXcursor -lasound \
+	-DLUA_USE_POSIX -D_POSIX_C_SOURCE=200809L \
 
-OSX_LDF = -I./build/osx/YellowFeather.app/Contents/Frameworks/SDL2.framework/Headers \
-   	 -F./build/osx/YellowFeather.app/Contents/Frameworks -framework SDL2 \
+WINFLAGS =  -std=c11 -Wall -Wextra -O3 -flto -Isrc -Ivendor/lua \
+	 -lmingw32 -mwindows -lkernel32 \
+	 -D_WIN32_WINNT=0x0601 \
+
+OSXFLAGS =  -std=c11 -Wall -Wextra -O3 -flto -Isrc -Ivendor/lua \
+   	 -framework Metal \
+	 -framework Cocoa \
+	 -framework QuartzCore \
+	 -framework AudioToolbox \
    	 -O2 -Wall \
    	 -Wl,-rpath,@executable_path/../Frameworks \
    	 -Wl,-rpath,/var/home/dytu/.osxcross/lib \
@@ -27,10 +31,10 @@ all: $(TARGET)
 
 
 $(TARGET): $(SRC)
-	$(CC) $(CFLAGS) -DLUA_USE_POSIX -D_POSIX_C_SOURCE=200809L $(SRC) $(LIBS) -o build/linux/$(TARGET)
+	$(CC) $(FLAGS) $(SRC) -o build/linux/$(TARGET)
 	
 windows: $(SRC)
-	$(WINCC) $(CFLAGS) -D_WIN32_WINNT=0x0601 $(SRC) $(WIN_LDF) -o build/windows/$(TARGET)
+	$(CC) --target=x86_64-w64-windows-gnu $(WINFLAGS) $(SRC) -o build/windows/$(TARGET)
 	
 osx: $(SRC)
-	xcrun $(CC) $(SRC) $(CFLAGS) $(OSX_LDF) -o build/osx/YellowFeather.app/Contents/MacOS/$(TARGET) -fno-lto
+	xcrun $(CC) $(OSXFLAGS) $(SRC) -o build/osx/YellowFeather.app/Contents/MacOS/$(TARGET) -fno-lto

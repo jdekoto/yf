@@ -4,10 +4,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include <SDL2/SDL.h>
-
 #include "audio.h"
-#include "mem.h"
 
 #define GATE_RAMP_SAMPLES 64
 
@@ -262,7 +259,7 @@ void tick_tracker(void) {
 }
 
 // Audio Output Streaming Callback Loop
-void spu_callback(void *userdata, uint8_t *stream, int len) {
+static void spu_callback(uint8_t *stream, int len) {
     uint8_t tracker_enabled = memory[TRACKER_ENABLED];
 
     if (cm_data && tracker_enabled == 1) {
@@ -461,20 +458,28 @@ void spu_callback(void *userdata, uint8_t *stream, int len) {
     }
 }
 
-void spu_init(void) {
-    SDL_AudioSpec wanted;
-    SDL_zero(wanted);
-    
-    wanted.freq = 22050;            
-    wanted.format = AUDIO_U8;       
-    wanted.channels = 1;            
-    wanted.samples = 256;           
-    wanted.callback = spu_callback;
-    
-    if (SDL_OpenAudio(&wanted, NULL) < 0) {
-        fprintf(stderr, "Failed to open audio: %s\n", SDL_GetError());
+static void audio_stream_cb(float *buffer, int num_frames, int num_channels) {
+    static uint8_t u8_buf[4096];   /* scratch — big enough for one callback */
+    int bytes = num_frames * num_channels;
+
+    spu_callback(u8_buf, bytes);   /* your real logic, untouched */
+
+    for (int i = 0; i < bytes; i++) {
+        buffer[i] = (u8_buf[i] - 128) / 128.0f;   /* u8 unsigned -> float -1..1 */
     }
-    SDL_PauseAudio(0); 
+}
+
+void spu_init(void) {
+    saudio_setup(&(saudio_desc){
+        .sample_rate = 22050,
+        .num_channels = 1,
+        .stream_cb = audio_stream_cb,
+        .logger.func = slog_func,
+    });
+}
+
+void spu_shutdown(void) {
+    saudio_shutdown();
 }
 
 void spu_start_module(const char* filename, float volume) {
