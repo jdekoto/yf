@@ -350,7 +350,6 @@ int yfc_boot(VM *vm, const char *cart_path, long offset) {
     }
     fclose(fd);
     
-    // push the game's id to the engine to handle saves. so we wouldnt need to parse it again
     strncpy(vm->id, cart_id, 8);
 
     printf("[BOOT] Running '%s' by %s (Version: %s) [ID: %s]\n", cart_title, cart_author, cart_version, cart_id);

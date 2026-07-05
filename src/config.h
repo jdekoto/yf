@@ -5,9 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
-#include <SDL2/SDL.h>
 
 void parse_config(const char *file_content, const char *key, char *output, int max_len);
-void config_title(SDL_Window *window, const char *config_file_path);
 
 #endif

@@ -1,7 +1,6 @@
 #ifndef AUDIO_H
 #define AUDIO_H
 
-#include <SDL2/SDL.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include "sokol_audio.h"

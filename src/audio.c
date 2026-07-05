@@ -455,11 +455,13 @@ static void spu_callback(uint8_t *stream, int len) {
         static uint8_t viz_write_ptr = 0;
         memory[ADDR_AUDIO + 0x40 + viz_write_ptr] = (uint8_t)mixed_output;
         viz_write_ptr = (viz_write_ptr + 1) % 128;
-    }
+        
+        }
 }
 
+
 static void audio_stream_cb(float *buffer, int num_frames, int num_channels) {
-    static uint8_t u8_buf[4096];   /* scratch — big enough for one callback */
+    static uint8_t u8_buf[2048];   /* scratch — big enough for one callback */
     int bytes = num_frames * num_channels;
 
     spu_callback(u8_buf, bytes);   /* your real logic, untouched */

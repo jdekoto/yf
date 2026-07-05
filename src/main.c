@@ -535,9 +535,20 @@ void init(void) {
     spu_init();
     vm_init(&vm);
     
-    if (empty_rom) { vm_bios(&vm); }
-    if (is_yfc) { yfc_boot(&vm, game_path, 0); }
-  
+    if (empty_rom) { 
+        vm_bios(&vm); 
+    } else if (is_yfc) { 
+        yfc_boot(&vm, game_path, 0); 
+    } else if (single) {
+        vm_load(&vm, game_path);  // Explicitly load single script on startup
+    } else {
+        vm_load(&vm, "boot.lua"); // Explicitly load folder-based game on startup
+    }
+    
+    load_sram(&vm);
+    printf("gl context valid: %d\n", sapp_isvalid());
+    printf("sapp color format = %d\n", sapp_color_format());
+    
     sg_setup(&(sg_desc){
         .environment = sglue_environment(),
         .logger.func = slog_func,
@@ -548,7 +559,7 @@ void init(void) {
         .width  = FB_WID,
         .height = FB_HEI,
         .format = SFB_FORMAT_RGBA8,     /* default, but explicit is clearer */
-        .prescale = 4,                    /* replaces KIT_SCALE4X */
+        .prescale = 4,
     });
 
     pass_action.colors[0] = (sg_color_attachment_action){
@@ -574,8 +585,21 @@ static void expand_rgb565_to_rgba8(const uint16_t *src, uint32_t *dst, int count
 }
 
 void frame(void) {
-    if (!is_yfc && !single ) { vm_reload(&vm, "boot.lua"); }
-    if (single) { vm_reload(&vm, game_path); }
+    static int reload_timer = 0;
+    reload_timer++;
+    
+    if (reload_timer >= 30) {
+        reload_timer = 0; // Reset timer
+        
+        // Only run hot-reloading if we are running local uncompiled files
+        if (!is_yfc) { 
+            if (single) { 
+                vm_reload(&vm, game_path); 
+            } else { 
+                vm_reload(&vm, "boot.lua"); 
+            }
+        }
+    }
     vm_update(&vm);
     fb_expand(framebuf);
     map_inputs();
@@ -669,8 +693,6 @@ static void on_launch(int argc, char *argv[]) {
     if (has_extension(target, ".yfc")) {
         is_yfc = true;
         title_handler(target, 0);
-        strncpy(vm.id, game_id, 8);
-        load_sram(&vm);
         strncpy(game_path, target, 512);
      } else if (has_extension(target, ".lua")) {
         single = true;
@@ -682,7 +704,6 @@ static void on_launch(int argc, char *argv[]) {
         }
         title_handler(target, 0);
         strncpy(vm.id, game_id, 8);
-        load_sram(&vm);
      }
 }
 
