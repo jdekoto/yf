@@ -6,6 +6,7 @@
 #include "sokol_audio.h"
 #include "sokol_log.h"
 #include "mem.h"
+#include "vm.h"
 
 #define AUDIO_CHANNELS 4
 

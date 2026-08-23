@@ -3,7 +3,7 @@ audio = {}
 
 -- overall background music that sucks cuz we dont have a tracker yet but wait till we do
 --mus = module("assets/arp.cm", 0.8) 
---mus.play()
+--mus.play()s
 
 function audio.tick()
     clear(0)
@@ -11,7 +11,7 @@ function audio.tick()
     -- under audio regs for this very reason. who knows, maybe it'll be per channel
     for x = 0, 127 do
         -- read the raw mixed sample directly from the visualizer window
-        local raw_sample = peek(0x06450 + 0x40 + x)
+        local raw_sample = peek(0x06450 + 0x50 + x)
 
         -- normalize audio amplitude down from an unsigned byte range (0 to 255)
         local wave = (raw_sample - 128) / 128

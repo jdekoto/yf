@@ -35,7 +35,7 @@
 #define CH_BUF_HALF(ch) (ADDR_AUDIO + ((ch) * 10) + 9) // Exposes half the buffer
 #define TRACKER_ENABLED (ADDR_AUDIO + 0x42)            // 1-byte toggle (0 = Off, 1 = On)
 #define TRACKER_VOLUME  (ADDR_AUDIO + 0x43)            // 1-byte master gain (0 to 255)
-
+#define ADDR_AUDIO_VIZ  (ADDR_AUDIO + 0x50)            // 128-byte waveform buffer
 #define REG_CAM_X       (ADDR_REGS + 0)  /* Camera X Offset (16-bit signed, 2 bytes) */
 #define REG_CAM_Y       (ADDR_REGS + 2)  /* Camera Y Offset (16-bit signed, 2 bytes) */
 

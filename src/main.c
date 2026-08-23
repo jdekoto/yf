@@ -546,8 +546,6 @@ void init(void) {
     }
     
     load_sram(&vm);
-    printf("gl context valid: %d\n", sapp_isvalid());
-    printf("sapp color format = %d\n", sapp_color_format());
     
     sg_setup(&(sg_desc){
         .environment = sglue_environment(),

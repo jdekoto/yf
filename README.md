@@ -31,11 +31,15 @@ Since we are lacking documentation and everything works via peek/poke, here's th
 As of right now, it is still in development, with api/tools and lack thereof, documentation, and overall guaranteed stability missing from the software. 
 
 ### ROADMAP
-This is to monitor the software's progress:</br>
--- [WE ARE HERE] v0.0.9: almost everything in v0.1 but Docs</br>
--- v0.1: complete api, stable build, cassette format, and documentation</br>
--- v0.2: complete development environment + editors, raspi + mac build</br>
--- v0.3: homebrew platforms (3ds, vita, etc), possible dreamcast via ANTIRUINS engine</br>
+We have a few things left before we distribute binaries and call it wraps.</br>
+This includes:</br>
+-- A complete verification of the Composition Sequencer Format/APU and all of it's feats</br>
+-- Map Layers (the implementation isnt hardware accelerated but rather similar to PICO-8)</br>
+-- 2 Player Controller Support</br>
+-- Complete Demoscenes Example using ALL of the hardware.</br>
+-- A proper appending method for fused binaries</br>
+-- Mac Support (broke after switching to sokol)</br>
+-- a complete and extensive documentation</br>
 
 ### GRATITUDE
 - ShrimpCatDev for heavy inspiration + palette and font via [CherryPop](https://github.com/ShrimpCatDev/CherryPop.git)

@@ -719,6 +719,13 @@ int l_module(lua_State *L) {
     return 1; 
 }
 
+/* stream(data, channel) - stream raw pcm thru a APU channel */
+static int l_stream(lua_State *L) {
+    int channel = (int)luaL_optinteger(L, 2, 0);
+    spu_tapestream(L, 1, channel);
+    return 0;
+}
+
 /* ═══════════════════════════════════════════════════════════════
    REGISTRATION
    ═══════════════════════════════════════════════════════════════ */
