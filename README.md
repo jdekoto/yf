@@ -40,7 +40,7 @@ This includes (though not in order):</br>
 -- Complete Demoscenes Example using ALL of the hardware.</br>
 -- A proper appending method for fused binaries</br>
 -- Mac Support (broke after switching to sokol)</br>
--- A very major bug in Cassettes not loading or reading SRAM</br>
+-- A very major bugs in Cassettes (not loading or reading SRAM, audio visualizer bugging out)</br>
 -- a complete and extensive documentation</br>
 
 ### GRATITUDE

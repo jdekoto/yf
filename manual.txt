@@ -19,7 +19,7 @@ table of contents:
 		2.1 cpu
 		2.2 memory
 		2.3 apu
-		2.4 cassette roms
+		2.4 rom format
 	3. api
 		3.1 memory
 		3.2 graphics
@@ -152,7 +152,7 @@ cpu:
 	any error in the code.
 	
 	the cpu is the only way you can manipulate the memory, with it providing raw block 
-	operations like peek(), poke(), memset(), memcpy(), and reload().
+	operations like peek(), poke(), memset(), and memcpy().
 	
 	the virtual execution thread does not run a continuous procedural top-down line 
 	of code. instead, the cpu calls two vectors during execution, one on startup and one on every frame. 
@@ -189,7 +189,10 @@ memory:
 	so what would that look like in practice would be:
 		poke((0x00000 + (24 * 128 + 13) * 2), 0xFFFF) -- pokes the 16 bit value to the framebuffer and offsets 
 		it to (13, 24) with 128 being the width of the screen.
-	it will lead to a white pixel at that exact spot! (we'll get more in depth with the primitives in 3.2)
+		-- or --
+		pixel(13, 24, 14) -- we can do the same thing with the pixel() primitive. though it references a color
+		from palette RAM.
+	it will lead to a white pixel at that exact spot!
 	
 	palette (1KB):
 	the palette ram is basically where the game's color entries gets stored. this indirectly comes with the benefits
@@ -204,7 +207,12 @@ memory:
 	regs [0x06400u - 0x065FFu] (64B): the registers will get their own section
 	
 	input (4B):
-	TODO
+	this holds all the of the input states. it currently handles two controllers. our btn() and btnp() primitives give you
+	simple handling of them. to use, or read the START button, use:
+		btn(8) -- reads player 1's start button. the button index is shown in diagram
+		-- or --
+		btnp(14) -- this reads player 2's B button. btnp() only reacts if it was pressed, so it wouldnt stay true if you
+		hold the button down.
 	
 	TODO: make this shi simpler.
 	bios font (768B):
@@ -219,17 +227,39 @@ memory:
 		Row 4:  # . . . #   --> Bits: 10001b --> Hex: 0x11u
 		Row 5:  [PADDING]   --> Bits: 00000b --> Hex: 0x00u
 	if you want to swap out the font, you can do:
-		reload("assets/widesquat.bin", 0x06600) -- swap out the bios font with another font in a similar format
+		memcpy(0x0660, include('assets/widesquat.bin')) -- swap out the bios font with another font in a similar format.
+	and then to use the font (or the default), we use the text() primitive:
+		text("any string here", x, y, col) -- prints the "any string here" text to screen at (x, y) with tinting it with 
+		any color indexed in palette RAM.
 	dev's diary: if you just want to edit a single character you can use the char target method with poking the character's
 	base (0x06600u + (ascii - 32) * 6) and going row by row. (6 in total)
+	
 
 	sprite banks (16KB, 2 in total):
 	the sprite banks are 128 x 128 in width and height and contain raw indexes in RAM, meaning they contain no rgb data by 
 	itself. to load the raw indexed spritesheet into a bank, do:
-		reload("assets/sprites.raw", 0x06900) -- to load sprites into sprite bank 0
+		memcpy(0x06900, include('assets/sprites.raw')) -- to load sprites into sprite bank 0
 		-- or --
-		reload("assets/sprites.raw", 0x0A900) -- to load sprites into sprite bank 1 (highly recommended for tiles)
+		memcpy(0x0A900, include('assets/sprites.raw')) -- to load sprites into sprite bank 1 (highly recommended for tiles)
 	dev's diary: our sprite() primitive automatically indexes our sprites into 8x8 sprites, with the ability to change the width 
 	and height with the extra parameters. to make the sprite() primitive reference the other sprite bank. switch banks by doing 
 	poke(0x06409, 1). you can switch back to sprite bank 0 by doing poke(0x06409, 0). and yes, you can render sprites from both 
 	banks.
+	
+	soundbank RAM (64KB):
+	the soundbank is what holds the sound for the game. its 64 slots and 12 bytes for each slot in the header. for loading,
+	its really straightforward, just like the spritebank and fonts:
+		memcpy(0x0E900, include('assets/soundbank.bin')) -- load the soundbank binary into its memory block
+	lets look into the header of the format:
+		sample offset (where the sample is located in mem/binary)
+		sample length (how long the sample is)
+		loop point (only one)
+		volume
+		additional flags
+	within each slot, it will contained a BRR compressed sample or a PCM sample, with BRR being the most common and most 
+	recommended. you can play a slot using the sound() primitive.
+		sound(1, 128, 2) -- plays the sample in the first slot, and half volume (255 is the limit) and plays on channel 2.
+	dev's diary: this is what the Composition Sequencer Format actually uses for instruments, utilizing all of the header
+	to use loop points, playing at a certain sample offset, volume, and use any other flags. we'll get into that the sequencing
+	and other stuff later on. 
+		

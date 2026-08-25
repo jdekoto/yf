@@ -207,6 +207,7 @@ void map_inputs(void) {
     poke(0x06442, (uint8_t)((final_mask >> 16) & 0xFF));
     poke(0x06443, (uint8_t)((final_mask >> 24) & 0xFF));
     
+    mg_gamepads_poll(&pads); 
 }
 
 // --- AUTOMATED ENGINE SRAM PERSISTENCE LAYER ---
@@ -631,8 +632,7 @@ void frame(void) {
                 vm_reload(&vm, "boot.lua"); 
             }
         }
-    }
-    mg_gamepads_poll(&pads);              
+    }             
     vm_update(&vm);
     fb_expand(framebuf);
     map_inputs();
@@ -657,8 +657,9 @@ void frame(void) {
 
 void cleanup(void) {
     dump_sram(&vm);
-    mg_gamepads_free(&pads);
     vm_shutdown(&vm);
+    // causes the game to freeze and exit???
+    // mg_gamepads_free(&pads); 
     spu_shutdown();
 }
 
