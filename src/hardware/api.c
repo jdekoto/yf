@@ -3,9 +3,9 @@
  * Complete 1:1 implementation from the original LUA API
  */
 
-#include "api.h"
-#include "mem.h"
-#include "audio.h"
+#include "headers/api.h"
+#include "headers/mem.h"
+#include "headers/audio.h"
 
 /* ── custom font lookup map ──────────────────────────────────── */
 static int g_ascii_to_font_index[256];
@@ -717,13 +717,6 @@ int l_module(lua_State *L) {
     lua_setfield(L, -2, "stop");             // table.stop = function
 
     return 1; 
-}
-
-/* stream(data, channel) - stream raw pcm thru a APU channel */
-static int l_stream(lua_State *L) {
-    int channel = (int)luaL_optinteger(L, 2, 0);
-    spu_tapestream(L, 1, channel);
-    return 0;
 }
 
 /* ═══════════════════════════════════════════════════════════════

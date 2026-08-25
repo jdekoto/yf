@@ -3,8 +3,8 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "sokol_audio.h"
-#include "sokol_log.h"
+#include "sokol/sokol_audio.h"
+#include "sokol/sokol_log.h"
 #include "mem.h"
 #include "vm.h"
 

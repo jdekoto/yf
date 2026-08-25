@@ -29,8 +29,8 @@
 #include "ltable.h"
 #include "ltm.h"
 #include "lvm.h"
-#include "mem.h"
-#include "api.h"
+#include "headers/mem.h"
+#include "headers/api.h"
 
 
 /*

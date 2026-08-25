@@ -1,6 +1,7 @@
 // main.c
 #define KIT_IMPL
 #define SOKOL_IMPL
+#define MG_IMPLEMENTATION
 #ifdef _WIN32
   #define SOKOL_D3D11
   #include <d3d11.h>
@@ -9,18 +10,20 @@
 #else
   #define SOKOL_GLCORE
 #endif
-#include "sokol_app.h"
-#include "sokol_gfx.h"
-#include "sokol_glue.h"
-#include "sokol_framebuffer.h"
-#include "sokol_letterbox.h"
-#include "kit.h"
-#include "mem.h"
-#include "vm.h"
-#include "audio.h"
-#include "font.h"
-#include "yfc.h"
-#include "config.h"
+
+#include "headers/kit.h"
+#include "headers/mem.h"
+#include "headers/vm.h"
+#include "headers/audio.h"
+#include "headers/font.h"
+#include "headers/yfc.h"
+#include "headers/config.h"
+#include "headers/sokol/sokol_app.h"
+#include "headers/sokol/sokol_gfx.h"
+#include "headers/sokol/sokol_glue.h"
+#include "headers/sokol/sokol_framebuffer.h"
+#include "headers/sokol/sokol_letterbox.h"
+#include "headers/minigamepad.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -51,9 +54,12 @@ uint16_t framebuf[FB_WID * FB_HEI];
 static bool is_yfc = false;
 static bool empty_rom = false;
 static bool single = false;
+static bool is_fused = false;
 static char game_path[512];
 static char game_title[32];
 static char game_id[8];
+static mg_gamepads pads;
+static long fused_offset = 0;
 
 void fb_expand(uint16_t *dst) {
     // Point to the beginning of your 16-bit Framebuffer in RAM
@@ -126,6 +132,10 @@ static inline bool kdown(int code) {
 
 
 void map_inputs(void) {
+    
+    mg_gamepad *pad1 = pads.list.head;
+    mg_gamepad *pad2 = (pad1) ? pad1->next : NULL;
+    
     // Refresh controller connection states
     
     poke(0x06444, peek(0x06440));
@@ -147,55 +157,50 @@ void map_inputs(void) {
     if (kdown(SAPP_KEYCODE_X))       p1_mask |= (1 << 7); 
     if (kdown(SAPP_KEYCODE_ENTER))   p1_mask |= (1 << 8);
 
-    /*
-    if (ctx->pad1) {
-        if (SDL_GameControllerGetButton(ctx->pad1, SDL_CONTROLLER_BUTTON_DPAD_LEFT))   p1_mask |= (1 << 0);
-        if (SDL_GameControllerGetButton(ctx->pad1, SDL_CONTROLLER_BUTTON_DPAD_RIGHT))  p1_mask |= (1 << 1);
-        if (SDL_GameControllerGetButton(ctx->pad1, SDL_CONTROLLER_BUTTON_DPAD_UP))     p1_mask |= (1 << 2);
-        if (SDL_GameControllerGetButton(ctx->pad1, SDL_CONTROLLER_BUTTON_DPAD_DOWN))   p1_mask |= (1 << 3);
-        if (SDL_GameControllerGetButton(ctx->pad1, SDL_CONTROLLER_BUTTON_A))           p1_mask |= (1 << 4);
-        if (SDL_GameControllerGetButton(ctx->pad1, SDL_CONTROLLER_BUTTON_B))           p1_mask |= (1 << 5);
-        if (SDL_GameControllerGetButton(ctx->pad1, SDL_CONTROLLER_BUTTON_X))           p1_mask |= (1 << 6);
-        if (SDL_GameControllerGetButton(ctx->pad1, SDL_CONTROLLER_BUTTON_Y))           p1_mask |= (1 << 7);
-        if (SDL_GameControllerGetButton(ctx->pad1, SDL_CONTROLLER_BUTTON_START))       p1_mask |= (1 << 8);
+    if (pad1 && pad1->connected) {
+        if (mg_gamepad_button_is_pressed(pad1, MG_BUTTON_DPAD_LEFT))  p1_mask |= (1 << 0);
+        if (mg_gamepad_button_is_pressed(pad1, MG_BUTTON_DPAD_RIGHT)) p1_mask |= (1 << 1);
+        if (mg_gamepad_button_is_pressed(pad1, MG_BUTTON_DPAD_UP))    p1_mask |= (1 << 2);
+        if (mg_gamepad_button_is_pressed(pad1, MG_BUTTON_DPAD_DOWN))  p1_mask |= (1 << 3);
+        if (mg_gamepad_button_is_pressed(pad1, MG_BUTTON_SOUTH))      p1_mask |= (1 << 4); // A
+        if (mg_gamepad_button_is_pressed(pad1, MG_BUTTON_EAST))       p1_mask |= (1 << 5); // B
+        if (mg_gamepad_button_is_pressed(pad1, MG_BUTTON_WEST))       p1_mask |= (1 << 6); // X
+        if (mg_gamepad_button_is_pressed(pad1, MG_BUTTON_NORTH))      p1_mask |= (1 << 7); // Y
+        if (mg_gamepad_button_is_pressed(pad1, MG_BUTTON_START))      p1_mask |= (1 << 8);
 
-        // Optional: Left Analog D-Pad deadzone fallback overrides
-        int16_t ax = SDL_GameControllerGetAxis(ctx->pad1, SDL_CONTROLLER_AXIS_LEFTX);
-        int16_t ay = SDL_GameControllerGetAxis(ctx->pad1, SDL_CONTROLLER_AXIS_LEFTY);
-        if (ax < -16000) p1_mask |= (1 << 0);
-        if (ax >  16000) p1_mask |= (1 << 1);
-        if (ay < -16000) p1_mask |= (1 << 2);
-        if (ay >  16000) p1_mask |= (1 << 3);
+        // Analog D-Pad Deadzone Fallback
+        float ax = mg_gamepad_axis_value(pad1, MG_AXIS_LEFT_X);
+        float ay = mg_gamepad_axis_value(pad1, MG_AXIS_LEFT_Y);
+        if (ax < -0.5f) p1_mask |= (1 << 0);
+        if (ax >  0.5f) p1_mask |= (1 << 1);
+        if (ay < -0.5f) p1_mask |= (1 << 2);
+        if (ay >  0.5f) p1_mask |= (1 << 3);
     }
-    */
     final_mask |= p1_mask;
 
-    /* --- PLAYER 2 SUB-MASK MAPPING (Bits 0-8 local, then shifted up) ---
-    uint16_t p2_mask = 0;
-    // as of right now, you will need two controllers to do two player, needa figure out kbd mappings
-    
-    if (ctx->pad2) {
-        if (SDL_GameControllerGetButton(ctx->pad2, SDL_CONTROLLER_BUTTON_DPAD_LEFT))   p2_mask |= (1 << 0);
-        if (SDL_GameControllerGetButton(ctx->pad2, SDL_CONTROLLER_BUTTON_DPAD_RIGHT))  p2_mask |= (1 << 1);
-        if (SDL_GameControllerGetButton(ctx->pad2, SDL_CONTROLLER_BUTTON_DPAD_UP))     p2_mask |= (1 << 2);
-        if (SDL_GameControllerGetButton(ctx->pad2, SDL_CONTROLLER_BUTTON_DPAD_DOWN))   p2_mask |= (1 << 3);
-        if (SDL_GameControllerGetButton(ctx->pad2, SDL_CONTROLLER_BUTTON_A))           p2_mask |= (1 << 4);
-        if (SDL_GameControllerGetButton(ctx->pad2, SDL_CONTROLLER_BUTTON_B))           p2_mask |= (1 << 5);
-        if (SDL_GameControllerGetButton(ctx->pad2, SDL_CONTROLLER_BUTTON_X))           p2_mask |= (1 << 6);
-        if (SDL_GameControllerGetButton(ctx->pad2, SDL_CONTROLLER_BUTTON_Y))           p2_mask |= (1 << 7);
-        if (SDL_GameControllerGetButton(ctx->pad2, SDL_CONTROLLER_BUTTON_START))       p2_mask |= (1 << 8);
+    // --- PLAYER 2 MAPPING (Gamepad 2) ---
+    if (pad2 && pad2->connected) {
+        uint16_t p2_mask = 0;
+        if (mg_gamepad_button_is_pressed(pad2, MG_BUTTON_DPAD_LEFT))  p2_mask |= (1 << 0);
+        if (mg_gamepad_button_is_pressed(pad2, MG_BUTTON_DPAD_RIGHT)) p2_mask |= (1 << 1);
+        if (mg_gamepad_button_is_pressed(pad2, MG_BUTTON_DPAD_UP))    p2_mask |= (1 << 2);
+        if (mg_gamepad_button_is_pressed(pad2, MG_BUTTON_DPAD_DOWN))  p2_mask |= (1 << 3);
+        if (mg_gamepad_button_is_pressed(pad2, MG_BUTTON_SOUTH))      p2_mask |= (1 << 4);
+        if (mg_gamepad_button_is_pressed(pad2, MG_BUTTON_EAST))       p2_mask |= (1 << 5);
+        if (mg_gamepad_button_is_pressed(pad2, MG_BUTTON_WEST))       p2_mask |= (1 << 6);
+        if (mg_gamepad_button_is_pressed(pad2, MG_BUTTON_NORTH))      p2_mask |= (1 << 7);
+        if (mg_gamepad_button_is_pressed(pad2, MG_BUTTON_START))      p2_mask |= (1 << 8);
 
-        int16_t ax = SDL_GameControllerGetAxis(ctx->pad2, SDL_CONTROLLER_AXIS_LEFTX);
-        int16_t ay = SDL_GameControllerGetAxis(ctx->pad2, SDL_CONTROLLER_AXIS_LEFTY);
-        if (ax < -16000) p2_mask |= (1 << 0);
-        if (ax >  16000) p2_mask |= (1 << 1);
-        if (ay < -16000) p2_mask |= (1 << 2);
-        if (ay >  16000) p2_mask |= (1 << 3);
+        float ax = mg_gamepad_axis_value(pad2, MG_AXIS_LEFT_X);
+        float ay = mg_gamepad_axis_value(pad2, MG_AXIS_LEFT_Y);
+        if (ax < -0.5f) p2_mask |= (1 << 0);
+        if (ax >  0.5f) p2_mask |= (1 << 1);
+        if (ay < -0.5f) p2_mask |= (1 << 2);
+        if (ay >  0.5f) p2_mask |= (1 << 3);
+
+        final_mask |= ((uint32_t)p2_mask << 9);
     }
     
-    // Shift Player 2 inputs up precisely past Player 1's Start key slot
-    final_mask |= ((uint32_t)p2_mask << 9);
-    */
     // 3. Poke the 32-bit aggregated mask cleanly across the 4 sequential bytes
     poke(0x06440, (uint8_t)(final_mask & 0xFF));
     poke(0x06441, (uint8_t)((final_mask >> 8) & 0xFF));
@@ -368,7 +373,8 @@ static void title_handler(const char *path, long offset) {
             lseek(fd, offset, SEEK_SET);
             char magic[4];
             char id[8];
-            if (read(fd, magic, 4) == 4 && strncmp(magic, "YFC!", 4) == 0) {
+            if (read(fd, magic, 4) == 4 && 
+                  magic[0] == 'Y' && magic[1] == 'F' && magic[2] == 'C' && magic[3] == '!') {
                 if (read(fd, id, 8) == 8) {
                     strncpy(game_id, id, 8);
                     // The title is stored immediately after the magic sig and id for 32 bytes
@@ -425,62 +431,87 @@ static void title_handler(const char *path, long offset) {
         }
     }
 }
+// is the fused an actual rom of just compiled code?
+static bool validate_yfc(FILE *f, long offset, long file_size) {
+    // must be a 84 byte header
+    if (file_size - offset < 84) return false;
 
-static long find_sentinel(int fd, long file_size) {
-    const char sentinel[8] = {
-        0xDE, 0xAD, 0xBE, 0xEF,
-        0xCA, 0xFE, 0xBA, 0xBE
-    };
+    long orig_pos = ftell(f);
+    fseek(f, offset, SEEK_SET);
 
-    // Start scanning from the end of the file minus the sentinel size
-    long current_pos = file_size - 8;
-    char buf[8];
+    char hdr[84];
+    size_t read_bytes = fread(hdr, 1, 84, f);
+    fseek(f, orig_pos, SEEK_SET); // restore file cursor
 
-    // Scan backward byte-by-byte
-    while (current_pos >= 0) {
-        lseek(fd, current_pos, SEEK_SET);
-        if (read(fd, buf, 8) == 8) {
-            if (memcmp(buf, sentinel, 8) == 0) {
-                /* Found it! Return the byte immediately AFTER the sentinel */
-                return current_pos + 8; 
-            }
-        }
-        current_pos--; // Move one byte backward
+    if (read_bytes != 84) return false;
+
+    if (hdr[0] != 'Y' || hdr[1] != 'F' || hdr[2] != 'C' || hdr[3] != '!') { // magic 4-byte
+        return false;
     }
 
-    return -1;   /* No sentinel found */
+    for (int i = 4; i < 12; i++) { // rom id
+        unsigned char c = (unsigned char)hdr[i];
+        if (c != 0 && (c < 32 || c > 126)) return false;
+    }
+
+    for (int i = 12; i < 44; i++) { // game title
+        unsigned char c = (unsigned char)hdr[i];
+        if (c != 0 && (c < 32 || c > 126)) return false;
+    }
+
+    for (int i = 44; i < 76; i++) { // game author
+        unsigned char c = (unsigned char)hdr[i];
+        if (c != 0 && (c < 32 || c > 126)) return false;
+    }
+                                                                 
+    for (int i = 76; i < 84; i++) { // game version
+        unsigned char c = (unsigned char)hdr[i];
+        if (c != 0 && (c < 32 || c > 126)) return false;
+    }
+                                                          
+    return true;
 }
 
 static long find_appended(const char *exe_path) {
-    int fd = open(exe_path, O_RDONLY | O_BINARY);
-    if (fd < 0) return -1;
+    FILE *f = fopen(exe_path, "rb");
+    if (!f) return -1;
 
-    long file_size = lseek(fd, 0, SEEK_END);
-    if (file_size < 1024) { close(fd); return -1; }
+    fseek(f, 0, SEEK_END);
+    long file_size = ftell(f);
+    if (file_size < 1024) {
+        fclose(f);
+        return -1;
+    }
 
-    /* find where exe code ends */
-    long exe_end = find_sentinel(fd, file_size);
-    if (exe_end < 0) { close(fd); return -1; }  /* no sentinel = not a fused binary */
+    #define BUF_SZ 4096
+    char buf[BUF_SZ];
+    long search_pos = file_size;
 
-    const char sig[4] = {'Y', 'F', 'C', '!'};
-    lseek(fd, exe_end, SEEK_SET);  /* only search from exe_end onwards */
+    while (search_pos > 0) {
+        long chunk_size = (search_pos < BUF_SZ) ? search_pos : BUF_SZ;
+        search_pos -= chunk_size;
 
-    char buf[4096];
-    long pos = exe_end;
-    ssize_t n;
-    long found_offset = -1;
+        fseek(f, search_pos, SEEK_SET);
+        if (fread(buf, 1, chunk_size, f) != (size_t)chunk_size) break;
 
-    while ((n = read(fd, buf, sizeof(buf))) > 0) {
-        for (int i = 0; i < n - 4; i++) {
-            if (buf[i]   == sig[0] && buf[i+1] == sig[1] &&
-                buf[i+2] == sig[2] && buf[i+3] == sig[3]) {
-                found_offset = pos + i;
+        // Scan backward through chunk
+        for (long i = chunk_size - 4; i >= 0; i--) {
+            if (buf[i] == 'Y' && buf[i+1] == 'F' && buf[i+2] == 'C' && buf[i+3] == '!') {
+                long candidate_offset = search_pos + i;
+
+                // Validate if this is a real YFC cartridge header or compiler junk
+                if (validate_yfc(f, candidate_offset, file_size)) {
+                    fclose(f);
+                    return candidate_offset;
+                }
             }
         }
-        pos += n;
+
+        if (search_pos > 0) search_pos += 3; // Keep boundary alignment
     }
-    close(fd);
-    return found_offset;
+
+    fclose(f);
+    return -1;
 }
 
 #ifdef __APPLE__
@@ -533,12 +564,15 @@ void init(void) {
     // initiate the system before argument handling
     mem_init();
     spu_init();
+    mg_gamepads_init(&pads);
     vm_init(&vm);
     
     if (empty_rom) { 
         vm_bios(&vm); 
     } else if (is_yfc) { 
         yfc_boot(&vm, game_path, 0); 
+    } else if (is_fused) {
+        yfc_boot(&vm, game_path, fused_offset);
     } else if (single) {
         vm_load(&vm, game_path);  // Explicitly load single script on startup
     } else {
@@ -598,6 +632,7 @@ void frame(void) {
             }
         }
     }
+    mg_gamepads_poll(&pads);              
     vm_update(&vm);
     fb_expand(framebuf);
     map_inputs();
@@ -622,42 +657,39 @@ void frame(void) {
 
 void cleanup(void) {
     dump_sram(&vm);
+    mg_gamepads_free(&pads);
     vm_shutdown(&vm);
     spu_shutdown();
 }
 
 static void on_launch(int argc, char *argv[]) {
     // first are we fused?
-    /* fuckass windows broke again so we gon redo the entire system
-    i think the macos method could work out but for now we'll disable appending
     #ifdef __APPLE__
     {
         const char *res_cart = find_resources_cart(argv[0]);
         if (res_cart) {
             is_yfc = true;
+            is_fused = true;
             title_handler(res_cart, 0);
             strncpy(vm.id, game_id, 8);
-            load_sram(&vm);
-            yfc_boot(&vm, res_cart, 0);
+            strncpy(game_path, res_cart, 512);
             return;
         }
     }
     #else
-      long fused_offset = find_appended(argv[0]);
-      if (fused_offset >= 0) {
-          printf("[ENGINE] Fused game stream payload identified at byte offset: %ld\n", fused_offset);
-          is_yfc = true;
-          
-          // We pass the engine's own running path as the cartridge target argument!
-          title_handler(argv[0], fused_offset);
-          strncpy(vm.id, game_id, 8);
-          load_sram(&vm);
-          yfc_boot(&vm, argv[0], fused_offset);
-          goto launch_window;
-      }
+        long offset = find_appended(argv[0]);
+        if (offset >= 0) {
+            printf("[ENGINE] Fused game stream payload identified at byte offset: %ld\n", offset);
+            is_yfc = true;
+            is_fused = true;
+            fused_offset = offset;
+            title_handler(argv[0], fused_offset);
+            strncpy(vm.id, game_id, 8);
+            strncpy(game_path, argv[0], 512);
+            return;
+        }
     
     #endif
-    */
     
     if (argc < 2) {
         empty_rom = true;

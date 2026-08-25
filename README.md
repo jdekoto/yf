@@ -10,6 +10,7 @@ This 16-bit fantasy console have all you need to make nostalgic games or works o
 - FB: 16-Bit Display with SQCIF resolution
 - AUDIO: 4 Channels with BRR Decompression
 - ROM: 16 MB Cassette Slot
+- BUS: Unlimited Memcard Space with 2 Controllers
 
 ### MEMORY MAP
 Since we are lacking documentation and everything works via peek/poke, here's the layout:
@@ -28,17 +29,18 @@ Since we are lacking documentation and everything works via peek/poke, here's th
 ```
 
 ### PROGRESS
-As of right now, it is still in development, with api/tools and lack thereof, documentation, and overall guaranteed stability missing from the software. 
+Right now we have ALOT already implemented. With an actual ROM format, majority of the api giving you the capabilites to do whatever you want basically, all thats missing is documentation and a few bugs to iron out.</br>
 
 ### ROADMAP
 We have a few things left before we distribute binaries and call it wraps.</br>
-This includes:</br>
+This includes (though not in order):</br>
 -- A complete verification of the Composition Sequencer Format/APU and all of it's feats</br>
 -- Map Layers (the implementation isnt hardware accelerated but rather similar to PICO-8)</br>
--- 2 Player Controller Support</br>
+-- 2 Player Controller Support [DONE]</br>
 -- Complete Demoscenes Example using ALL of the hardware.</br>
 -- A proper appending method for fused binaries</br>
 -- Mac Support (broke after switching to sokol)</br>
+-- A very major bug in Cassettes not loading or reading SRAM</br>
 -- a complete and extensive documentation</br>
 
 ### GRATITUDE

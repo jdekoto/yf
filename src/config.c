@@ -1,4 +1,4 @@
-#include "config.h"
+#include "headers/config.h"
 
 // this is both for the window title and the cart header
 

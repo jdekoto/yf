@@ -1,7 +1,7 @@
-#include "vm.h"
-#include "mem.h"
-#include "audio.h"
-#include "api.h"
+#include "headers/vm.h"
+#include "headers/mem.h"
+#include "headers/audio.h"
+#include "headers/api.h"
 #include <string.h>
 #include <dirent.h>
 

@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include "audio.h"
+#include "headers/audio.h"
 
 #define GATE_RAMP_SAMPLES 64
 

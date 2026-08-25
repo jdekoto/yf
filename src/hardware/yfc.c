@@ -1,5 +1,5 @@
 // yfc.c
-#include "yfc.h"
+#include "headers/yfc.h"
 #include <stdlib.h>
 #include <limits.h>
 #include <unistd.h>

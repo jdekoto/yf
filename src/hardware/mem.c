@@ -1,5 +1,5 @@
 // mem.c
-#include "mem.h"
+#include "headers/mem.h"
 #include <stdio.h>
 
 uint8_t memory[RAM_SIZE] = {0};
