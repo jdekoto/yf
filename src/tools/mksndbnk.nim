@@ -1,4 +1,5 @@
 # mksndbnk - makes a soundbank binary for the yf apu
+# TODO: distortion at the tails of the sfx. fix it
 import std/[os, strutils, streams, strformat, endians]
 
 const
