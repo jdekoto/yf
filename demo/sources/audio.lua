@@ -3,7 +3,7 @@ audio = {}
 
 -- overall background music that sucks cuz we dont have a tracker yet but wait till we do
 --mus = module("assets/arp.cm", 0.8) 
---mus.play()s
+--mus.play()
 
 function audio.tick()
     clear(0)

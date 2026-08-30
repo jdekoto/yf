@@ -34,13 +34,13 @@ Right now we have ALOT already implemented. With an actual ROM format, majority 
 ### ROADMAP
 We have a few things left before we distribute binaries and call it wraps.</br>
 This includes (though not in order):</br>
--- A complete verification of the Composition Sequencer Format/APU and all of it's feats</br>
--- Map Layers (the implementation isnt hardware accelerated but rather similar to PICO-8)</br>
 -- 2 Player Controller Support [DONE]</br>
--- Complete Demoscenes Example using ALL of the hardware.</br>
 -- A proper appending method for fused binaries</br>
 -- Mac Support (broke after switching to sokol)</br>
--- A very major bugs in Cassettes (not loading or reading SRAM, audio visualizer bugging out)</br>
+-- A polished APU (Sequencer Format mostly)</br>
+-- Software Map Layers [IMPLEMENTED BUT NOT TESTED/CONFIRMED]</br>
+-- A very major bugs in Cassettes (Memory bug affecting SRAM and Audio Visualizer)</br>
+-- Complete Demoscenes Example using ALL of the hardware.</br>
 -- a complete and extensive documentation</br>
 
 ### GRATITUDE
