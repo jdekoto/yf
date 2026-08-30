@@ -21,7 +21,6 @@ OSXFLAGS = -x objective-c \
 	 -framework Foundation \
 	 -lSystem \
    	 -O2 -Wall \
-   	 -Wl,-rpath,@executable_path/../Frameworks \
    	 -Wl,-rpath,/var/home/dytu/.osxcross/lib \
    	 -arch x86_64 -arch arm64 \
    	 -mmacosx-version-min=11.0 -fobjc-link-runtime \

@@ -38,8 +38,9 @@ This includes (though not in order):</br>
 -- A proper appending method for fused binaries [DONE BUT CARRIES ROM BUGS]</br>
 -- Mac Support [DONE BUT NEEDS TESTING]</br>
 -- Software Map Layers [IMPLEMENTED BUT NOT TESTED/CONFIRMED]</br>
--- A polished APU (Sequencer Format, Soundbank and Tracker Software mostly)</br>
--- A very major bugs in Cassettes (Memory bug affecting SRAM and Audio Visualizer)</br>
+-- Flesh out the Sequencer a little bit more for full compatibility for MOD FX</br>
+-- A few CLI tools for reverse engineering and asset conversion (in Nim this time)</br>
+-- Fix load_sram() bug for ROMS</br>
 -- Complete Demoscenes Example using ALL of the hardware.</br>
 -- a complete and extensive documentation</br>
 
