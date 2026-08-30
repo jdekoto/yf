@@ -1,3 +1,4 @@
+# rom2inst - strips the raw lua instructions from the ROM
 import std/[os, strutils, streams]
 
 proc main() =
