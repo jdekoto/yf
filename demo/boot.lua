@@ -10,7 +10,7 @@ require("tilemap")
 -- main initalization function
 function _boot()
 	-- load the cassette's sndbnk into its dedicated ram block
-	memcpy(0x0E900, include('assets/sfx/soundbank.bin'))
+	memcpy(0x0E900, include('assets/sfx/sndbnk.bin'))
 
 	-- based on ANTIRUINS' scene example, make a table of states for each demo
 	states = { "hello", "anim", "tilemap", "audio", "frame", "flashrom", "dots3d" }

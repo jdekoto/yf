@@ -135,7 +135,8 @@ proc packSoundBank(sourceDir, outputPath: string): bool =
     let totalBloks = (brrData.len div 9).uint32
     
     if (currentWriteOffset.int + brrData.len) > SoundbankSize:
-      echo "Warning: soundbank hit size limit, will continuing"
+      echo "Warning: soundbank hit size limit, stopping"
+      return false
       
     registry[slotId] = SndSlotEntry(
       offset: currentWriteOffset,
