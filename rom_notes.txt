@@ -1,0 +1,5 @@
+# rom notes
+
+a. the SRAM doesnt load back up when running a Cassette
+b. Fused binaries return an error from load_sram() and yfc_boot(),
+	though the game_title is able to load it from the fused ROM

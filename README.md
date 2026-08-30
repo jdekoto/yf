@@ -20,8 +20,8 @@ Since we are lacking documentation and everything works via peek/poke, here's th
 #define ADDR_INPUT  0x06440u   /* input state            */
 #define ADDR_AUDIO  0x06450u   /* audio registers        */
 #define ADDR_FONT   0x06600u   /* system font            */
-#define ADDR_SPRB0  0x06900u   /* Sprite Bank 0: (8KB)   */
-#define ADDR_SPRB1  0x08900u   /* Sprite Bank 1: (8KB)   */
+#define ADDR_SPRB0  0x06900u   /* sprite bank 0: (8KB)   */
+#define ADDR_SPRB1  0x08900u   /* sprite bank 1: (8KB)   */
 #define ADDR_SNDBNK 0x10400u   /* sound bank (64KB)      */
 #define ADDR_MAP    0x20400u   /* tilemap block (128KB)  */
 #define ADDR_CART   0x40400u   /* cart RAM (~256KB)      */
@@ -35,10 +35,10 @@ Right now we have ALOT already implemented. With an actual ROM format, majority 
 We have a few things left before we distribute binaries and call it wraps.</br>
 This includes (though not in order):</br>
 -- 2 Player Controller Support [DONE]</br>
--- A proper appending method for fused binaries</br>
--- Mac Support (broke after switching to sokol)</br>
--- A polished APU (Sequencer Format mostly)</br>
+-- A proper appending method for fused binaries [DONE BUT CARRIES ROM BUGS]</br>
+-- Mac Support [DONE BUT NEEDS TESTING]</br>
 -- Software Map Layers [IMPLEMENTED BUT NOT TESTED/CONFIRMED]</br>
+-- A polished APU (Sequencer Format, Soundbank and Tracker Software mostly)</br>
 -- A very major bugs in Cassettes (Memory bug affecting SRAM and Audio Visualizer)</br>
 -- Complete Demoscenes Example using ALL of the hardware.</br>
 -- a complete and extensive documentation</br>

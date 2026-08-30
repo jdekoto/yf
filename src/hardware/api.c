@@ -495,7 +495,7 @@ static int l_tile(lua_State *L) {
     return 0;
 }
 
-/* experimental map functoin implementing layers */
+/* experimental map function implementing layers */
 static int l_map(lua_State *L) {
     int stx = (int)luaL_checknumber(L, 1);
     int sty = (int)luaL_checknumber(L, 2);

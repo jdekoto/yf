@@ -5,8 +5,6 @@
 #ifdef _WIN32
   #define SOKOL_D3D11
   #include <d3d11.h>
-#elif defined(__APPLE__)
-  #define SOKOL_METAL
 #else
   #define SOKOL_GLCORE
 #endif
@@ -570,10 +568,10 @@ void init(void) {
     
     if (empty_rom) { 
         vm_bios(&vm); 
-    } else if (is_yfc) { 
-        yfc_boot(&vm, game_path, 0); 
     } else if (is_fused) {
         yfc_boot(&vm, game_path, fused_offset);
+    } else if (is_yfc) { 
+        yfc_boot(&vm, game_path, 0); 
     } else if (single) {
         vm_load(&vm, game_path);  // Explicitly load single script on startup
     } else {
@@ -670,7 +668,6 @@ static void on_launch(int argc, char *argv[]) {
         const char *res_cart = find_resources_cart(argv[0]);
         if (res_cart) {
             is_yfc = true;
-            is_fused = true;
             title_handler(res_cart, 0);
             strncpy(vm.id, game_id, 8);
             strncpy(game_path, res_cart, 512);
