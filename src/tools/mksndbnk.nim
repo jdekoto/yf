@@ -87,12 +87,12 @@ proc encodeBrr(chunk: seq[int16]): array[9, byte] =
     for s in pChunk:
       let sample = s.int32
       let step = if shift == 0: sample shl 1 else: sample shr (shift - 1)
-      if step < -8 or step > 7:
+      if step <= -8 or step >= 7:
         valid = false
         break
-      if valid:
-        bestShift = shift
-        break
+    if valid:
+      bestShift = shift
+      break
         
     result[0] = byte((bestShift shl 4) or (0 shl 2))
     
@@ -113,7 +113,7 @@ proc encodeBrr(chunk: seq[int16]): array[9, byte] =
       result[byteIdx] = (nibble0 shl 4) or nibble1
       inc byteIdx
       
-proc packSoundBank(sourceDir, outputPath: string): bool =
+proc packSoundbank(sourceDir, outputPath: string): bool =
   var registry: array[MaxSoundSlots, SndSlotEntry]
   var payload = newSeq[byte]()
   var currentWriteOffset = TotalHeaderSize.uint32
@@ -185,7 +185,7 @@ proc main() =
     quit(1)
     
   let sourceDir = args[0]
-  let outputBIn = args[1]
+  let outputBin = args[1]
   
   if not dirExists(sourceDir):
     createDir(sourceDir)
