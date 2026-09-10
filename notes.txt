@@ -1,0 +1,11 @@
+# notes
+
+a. the SRAM doesnt load back up when running a Cassette
+b. fused binaries return an error from load_sram() and yfc_boot(),
+	though the game_title is able to load it from the fused ROM
+c. make the following cli tools
+	mksndbnk - packs a soundbank binary from a folder (00.wav, 01.wav, etc)
+	rom2inst - rips the bytecode out from the cassette
+	json2map - takes a map in spritefusion json format and packs into a bin
+	mod2seq  - converts an amiga module into sequence data and samples
+	
