@@ -570,7 +570,8 @@ void init(void) {
         vm_bios(&vm); 
     } else if (is_fused) {
         yfc_boot(&vm, game_path, fused_offset);
-    } else if (is_yfc) { 
+    } else if (is_yfc) {
+        load_sram(&vm);
         yfc_boot(&vm, game_path, 0); 
     } else if (single) {
         vm_load(&vm, game_path);  // Explicitly load single script on startup
@@ -641,8 +642,28 @@ void frame(void) {
         .pixels = SG_RANGE(fb_rgba),
     });
     
-    slbx_viewport vp = slbx_letterbox(sapp_width(), sapp_height(), &(slbx_letterbox_desc){
+    int win_w = sapp_width();
+    int win_h = sapp_height();
+
+    int scale_x = win_w / FB_WID;
+    int scale_y = win_h / FB_HEI;
+    int scale = (scale_x < scale_y) ? scale_x : scale_y;
+    if (scale < 1) scale = 1;
+
+    int target_w = FB_WID * scale;
+    int target_h = FB_HEI * scale;
+
+    int pad_x = (win_w - target_w) / 1.7;
+    int pad_y = (win_h - target_h) / 1.7;
+    
+    slbx_viewport vp = slbx_letterbox(win_w, win_h, &(slbx_letterbox_desc){
         .content_aspect_ratio = (float)FB_WID / (float)FB_HEI,
+        .border = {
+            .left   = pad_x,
+            .right  = pad_x,
+            .top    = pad_y,
+            .bottom = pad_y
+          }
     });
     
     sg_begin_pass(&(sg_pass){ .action = pass_action, .swapchain = sglue_swapchain() });
