@@ -45,6 +45,9 @@ This includes (though not in order):</br>
 -- Complete Demoscenes Example using ALL of the hardware.</br>
 -- a complete and extensive documentation</br>
 
+### NOTE
+on musl based distros, run `export ALSA_PLUGIN_DIR=/usr/lib/alsa-lib` or add it to your shell, this maps libasound.so to the correct plugin path</br>
+
 ### GRATITUDE
 - ShrimpCatDev for heavy inspiration + palette and font via [CherryPop](https://github.com/ShrimpCatDev/CherryPop.git)
 - Zep and his entire [Lexaloffle](www.lexaloffle.com) Trilogy for setting the standard of fantasy consoles
