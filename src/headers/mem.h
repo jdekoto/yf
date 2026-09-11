@@ -12,8 +12,8 @@
 #define ADDR_INPUT  0x06440u   /* input state            */
 #define ADDR_AUDIO  0x06450u   /* audio registers        */
 #define ADDR_FONT   0x06600u   /* system font            */
-#define ADDR_SPRB0  0x06900u   /* Sprite Bank 0: (16KB)  */
-#define ADDR_SPRB1  0x0A900u   /* Sprite Bank 1: (16KB)  */
+#define ADDR_SPRB0  0x06900u   /* sprite bank 0: (16KB)  */
+#define ADDR_SPRB1  0x0A900u   /* sprite bank 1: (16KB)  */
 #define ADDR_SNDBNK 0x0E900u   /* sound bank (64KB)      */
 #define ADDR_MAP    0x1E900u   /* tilemap block (128KB)  */
 #define ADDR_CART   0x3E900u   /* cart RAM (~256KB)      */

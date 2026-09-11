@@ -60,46 +60,39 @@ static mg_gamepads pads;
 static long fused_offset = 0;
 
 void fb_expand(uint16_t *dst) {
-    // Point to the beginning of your 16-bit Framebuffer in RAM
     uint8_t *fb = (uint8_t*)memory + ADDR_FB;
     
-    // Grab the wave parameters from your hardware registers
+    // grab wave parameters from your hardware registers
     uint8_t amp  = memory[REG_WAVE_AMP];
     uint8_t freq = memory[REG_WAVE_FREQ];
     uint8_t t    = memory[REG_WAVE_TIME];
 
-    // Loop through every scanline (Y)
     for (int y = 0; y < FB_HEI; y++) {
         int h_offset = 0;
         
-        // Calculate the wave offset ONCE per row
+        // calculate the wave offset ONCE per row
         if (amp > 0) {
             h_offset = (int)(sinf((y * freq + t) * 0.05f) * amp);
         }
 
-        // Loop through every pixel in this scanline (X)
+
         for (int x = 0; x < FB_WID; x++) {
-            // 1. Compute where this pixel lands on the screen texture
             int dst_idx = (y * FB_WID) + x;
 
-            // 2. Apply the horizontal shift to our source X coordinate, wrapping edges
-            int src_x = (x + h_offset) % FB_WID;
-            if (src_x < 0) src_x += FB_WID; // Handle negative wrapping safely
 
-            // 3. Convert the shifted (src_x, y) back into a flat 1D pixel index
-            int src_pixel_idx = (y * FB_WID) + src_x;
+            int src_x = (x + h_offset) % FB_WID;
+            if (src_x < 0) src_x += FB_WID;
             
-            // 4. Because each pixel is 2 bytes, calculate the byte index in RAM
+            int src_pixel_idx = (y * FB_WID) + src_x;
+
             int byte_idx = src_pixel_idx * 2;
             
-            // 5. Grab the Low Byte and High Byte from your flat RAM array (Your exact logic!)
             uint8_t low  = fb[byte_idx];
             uint8_t high = fb[byte_idx + 1];
             
-            // 6. Combine them back into a single 16-bit color integer
             uint16_t color16 = low | (high << 8);
             
-            // 7. Write it directly to the SDL texture / destination pixel array!
+
             dst[dst_idx] = color16;
         }
     }
@@ -160,10 +153,10 @@ void map_inputs(void) {
         if (mg_gamepad_button_is_pressed(pad1, MG_BUTTON_DPAD_RIGHT)) p1_mask |= (1 << 1);
         if (mg_gamepad_button_is_pressed(pad1, MG_BUTTON_DPAD_UP))    p1_mask |= (1 << 2);
         if (mg_gamepad_button_is_pressed(pad1, MG_BUTTON_DPAD_DOWN))  p1_mask |= (1 << 3);
-        if (mg_gamepad_button_is_pressed(pad1, MG_BUTTON_SOUTH))      p1_mask |= (1 << 4); // A
-        if (mg_gamepad_button_is_pressed(pad1, MG_BUTTON_EAST))       p1_mask |= (1 << 5); // B
-        if (mg_gamepad_button_is_pressed(pad1, MG_BUTTON_WEST))       p1_mask |= (1 << 6); // X
-        if (mg_gamepad_button_is_pressed(pad1, MG_BUTTON_NORTH))      p1_mask |= (1 << 7); // Y
+        if (mg_gamepad_button_is_pressed(pad1, MG_BUTTON_SOUTH))      p1_mask |= (1 << 4);
+        if (mg_gamepad_button_is_pressed(pad1, MG_BUTTON_EAST))       p1_mask |= (1 << 5);
+        if (mg_gamepad_button_is_pressed(pad1, MG_BUTTON_WEST))       p1_mask |= (1 << 6);
+        if (mg_gamepad_button_is_pressed(pad1, MG_BUTTON_NORTH))      p1_mask |= (1 << 7);
         if (mg_gamepad_button_is_pressed(pad1, MG_BUTTON_START))      p1_mask |= (1 << 8);
 
         // Analog D-Pad Deadzone Fallback
@@ -570,16 +563,16 @@ void init(void) {
         vm_bios(&vm); 
     } else if (is_fused) {
         yfc_boot(&vm, game_path, fused_offset);
-    } else if (is_yfc) {
         load_sram(&vm);
+    } else if (is_yfc) {
         yfc_boot(&vm, game_path, 0); 
+        load_sram(&vm);
     } else if (single) {
         vm_load(&vm, game_path);  // Explicitly load single script on startup
     } else {
         vm_load(&vm, "boot.lua"); // Explicitly load folder-based game on startup
+        load_sram(&vm);
     }
-    
-    load_sram(&vm);
     
     sg_setup(&(sg_desc){
         .environment = sglue_environment(),
@@ -600,7 +593,7 @@ void init(void) {
 };
 }
 
-static void expand_rgb565_to_rgba8(const uint16_t *src, uint32_t *dst, int count) {
+static void rgb565_to_rgba8(const uint16_t *src, uint32_t *dst, int count) {
     for (int i = 0; i < count; i++) {
         uint16_t px = src[i];
         uint8_t r5 = (px >> 11) & 0x1F;
@@ -636,11 +629,12 @@ void frame(void) {
     fb_expand(framebuf);
     map_inputs();
     /* fb to rgba8 conversion */
-    expand_rgb565_to_rgba8(framebuf, fb_rgba, FB_WID * FB_HEI);
+    rgb565_to_rgba8(framebuf, fb_rgba, FB_WID * FB_HEI);
 
     sfb_update(fb, &(sfb_update_desc){
         .pixels = SG_RANGE(fb_rgba),
     });
+    
     
     int win_w = sapp_width();
     int win_h = sapp_height();
@@ -666,7 +660,7 @@ void frame(void) {
           }
     });
     
-    sg_begin_pass(&(sg_pass){ .action = pass_action, .swapchain = sglue_swapchain() });
+    sg_begin_pass(&(sg_pass){ .action = pass_action, .swapchain = sglue_swapchain()});
     sg_apply_viewport(vp.x, vp.y, vp.width, vp.height, true);
     sfb_render_ex(fb, &(sfb_render_desc){ .use_nearest_filter = true });
     sg_end_pass();
@@ -707,7 +701,6 @@ static void on_launch(int argc, char *argv[]) {
             strncpy(game_path, argv[0], 512);
             return;
         }
-    
     #endif
     
     if (argc < 2) {

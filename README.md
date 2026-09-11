@@ -8,7 +8,7 @@ This 16-bit fantasy console have all you need to make nostalgic games or works o
 - VM: Lua 5.4 CPU clocked at 6M ops / sec (with hot reload)
 - RAM: 512 KB
 - FB: 16-Bit Display with SQCIF resolution
-- AUDIO: 4 Channels with BRR Decompression
+- AUDIO: 4 PCM Channels with BRR Decompression
 - ROM: 16 MB Cassette Slot
 - BUS: Unlimited Memcard Space with 2 Controllers
 
@@ -17,6 +17,7 @@ Since we are lacking documentation and everything works via peek/poke, here's th
 ```c
 #define ADDR_FB     0x00000u   /* 128×96 = (24KB)        */
 #define ADDR_PAL    0x06000u   /* 512 slots = (1KB)      */
+#define ADDR_REGS   0x06400u   /* base for the registers */
 #define ADDR_INPUT  0x06440u   /* input state            */
 #define ADDR_AUDIO  0x06450u   /* audio registers        */
 #define ADDR_FONT   0x06600u   /* system font            */

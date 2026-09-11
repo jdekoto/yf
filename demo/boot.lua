@@ -6,6 +6,7 @@ require("dots3d")
 require("frame")
 require("flashrom")
 require("tilemap")
+require("scanline")
 
 -- main initalization function
 function _boot()
@@ -13,7 +14,7 @@ function _boot()
 	memcpy(0x0E900, include('assets/sfx/sndbnk.bin'))
 
 	-- based on ANTIRUINS' scene example, make a table of states for each demo
-	states = { "hello", "anim", "tilemap", "audio", "frame", "flashrom", "dots3d" }
+	states = { "hello", "anim", "tilemap", "audio", "frame", "flashrom", "dots3d", "wiggly" }
 	-- or current state, for right now a meaningless number. but it will set the current
 	-- scene by referring to the index of the state table
 	cState = 1
@@ -56,10 +57,20 @@ function _tick()
 		flashrom.tick()
 	elseif mode == "tilemap" then
 		tilemap.tick()
+	elseif mode == "wiggly" then
+	  wiggly.tick()
 	end
 
 	-- reset the camera for the map since its a global hardware offset
 	if mode == "tilemap" then
-		camera()
+		camera(0, 0)
 	end
+	
+	-- turn off the scanline shi for everybody else
+	if mode != "wiggly" then
+	  	poke(0x0640D, 0)
+	  poke(0x0640E, 0)
+	  poke(0x0640F, 0)
+	end
+	
 end

@@ -1473,7 +1473,7 @@ _SOKOL_PRIVATE void* _saudio_alsa_cb(void* param) {
 
 _SOKOL_PRIVATE bool _saudio_alsa_backend_init(void) {
     int dir; uint32_t rate;
-    int rc = snd_pcm_open(&_saudio.backend.device, "default", SND_PCM_STREAM_PLAYBACK, 0);
+    int rc = snd_pcm_open(&_saudio.backend.device, "plug:dmix", SND_PCM_STREAM_PLAYBACK, 0);
     if (rc < 0) {
         _SAUDIO_ERROR(ALSA_SND_PCM_OPEN_FAILED);
         return false;
