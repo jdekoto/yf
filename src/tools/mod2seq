@@ -1,0 +1,141 @@
+#!/usr/bin/env python3
+import os
+import sys
+import wave
+import struct
+
+# Standard ProTracker Period Table (3 Octaves: C-1 to B-3)
+PROTRACKER_PERIODS = [
+    # Octave 1
+    856, 808, 762, 720, 678, 640, 604, 570, 538, 508, 480, 453,
+    # Octave 2
+    428, 404, 381, 360, 339, 320, 302, 285, 269, 254, 240, 226,
+    # Octave 3
+    214, 202, 190, 180, 170, 160, 151, 143, 135, 127, 120, 113
+]
+
+def period_to_note(period):
+    """Maps a 12-bit Amiga period value to APU note index (1-36). Returns 0 if empty."""
+    if period == 0:
+        return 0
+    
+    best_idx = 0
+    min_diff = abs(period - PROTRACKER_PERIODS[0])
+    for idx, p in enumerate(PROTRACKER_PERIODS):
+        diff = abs(period - p)
+        if diff < min_diff:
+            min_diff = diff
+            best_idx = idx
+            
+    return best_idx + 1  # 1-indexed for APU note_pitch_table
+
+def write_wav(filename, raw_pcm_int8, sample_rate=8363):
+    """Converts Amiga signed 8-bit PCM (-128..127) to standard unsigned 8-bit WAV (0..255)."""
+    # Amiga samples use signed int8; standard 8-bit WAV requires unsigned uint8
+    wav_bytes = bytearray((b if b < 128 else b - 256) + 128 for b in raw_pcm_int8)
+    
+    with wave.open(filename, 'wb') as wf:
+        wf.setnchannels(1)      # Mono
+        wf.setsampwidth(1)      # 8-bit PCM
+        wf.setframerate(sample_rate)
+        wf.writeframes(wav_bytes)
+
+def convert_mod(mod_filename, cm_filename, sample_dir="samples", default_bpm=125, default_speed=6):
+    with open(mod_filename, "rb") as f:
+        mod_data = f.read()
+
+    # Parse MOD Header & Sample Descriptors (31 Samples)
+    song_title = mod_data[0:20].decode("ascii", errors="ignore").strip()
+    song_length = mod_data[950]
+    order_table = mod_data[952:1080]
+    tag = mod_data[1080:1084].decode("ascii", errors="ignore")
+
+    print(f"Loaded: '{song_title}' [{tag}]")
+    print(f"Song Length: {song_length} orders")
+
+    sample_headers = []
+    for i in range(31):
+        offset = 20 + (i * 30)
+        s_name = mod_data[offset:offset+22].decode("ascii", errors="ignore").strip()
+        s_len  = struct.unpack(">H", mod_data[offset+22:offset+24])[0] * 2  # Stored as 16-bit words
+        sample_headers.append({'id': i, 'name': s_name, 'length': s_len})
+
+    # Determine total stored pattern count
+    num_patterns = max(order_table) + 1 if song_length > 0 else 0
+    pattern_start = 1084
+    sample_data_start = pattern_start + (num_patterns * 1024)
+
+    # Extract PCM Audio Samples to .WAV Files
+    os.makedirs(sample_dir, exist_ok=True)
+    curr_sample_ptr = sample_data_start
+
+    print(f"\nExtracting samples to '{sample_dir}/'...")
+    extracted_count = 0
+    for s in sample_headers:
+        if s['length'] > 2:  # Skip empty or dummy 2-byte samples
+            raw_pcm = mod_data[curr_sample_ptr : curr_sample_ptr + s['length']]
+            wav_name = os.path.join(sample_dir, f"{s['id']:02d}.wav")
+            write_wav(wav_name, raw_pcm)
+            extracted_count += 1
+            print(f"  -> Saved Slot {s['id']:02d} ({s['length']} bytes) to {wav_name}")
+        
+        curr_sample_ptr += s['length']
+
+    print(f"Extracted {extracted_count} audio sample(s).")
+
+    # Build .cm Header & Pattern Data
+    cm_header = bytearray(8)
+    cm_header[0:4] = b"CM01"                            # Magic Identifier
+    cm_header[4]   = default_bpm & 0xFF                 # Initial BPM
+    cm_header[5]   = default_speed & 0xFF               # Initial Speed
+    struct.pack_into("<H", cm_header, 6, song_length)   # Song Length
+
+    cm_patterns = bytearray()
+    for p in range(num_patterns):
+        pat_base = pattern_start + (p * 1024)
+        pat_data = mod_data[pat_base : pat_base + 1024]
+        cm_pattern = bytearray(1024)
+
+        for row in range(64):
+            for ch in range(4):
+                cell_offset = (row * 16) + (ch * 4)
+                
+                b0, b1, b2, b3 = pat_data[cell_offset:cell_offset+4]
+
+                sample_id = (b0 & 0xF0) | ((b2 & 0xF0) >> 4)
+                period    = ((b0 & 0x0F) << 8) | b1
+                effect    = b2 & 0x0F
+                param     = b3
+
+                note_idx  = period_to_note(period)
+                out_eff   = 0
+                out_param = param
+
+                if effect in (0x01, 0x02, 0x03, 0x04, 0x0A):
+                    out_eff = effect
+                elif effect == 0x0C:  # Set Volume (Map 0-64 -> 0-255)
+                    out_eff = 0x0C
+                    out_param = min(255, param * 4)
+
+                cm_pattern[cell_offset + 0] = note_idx & 0xFF
+                cm_pattern[cell_offset + 1] = sample_id & 0xFF
+                cm_pattern[cell_offset + 2] = out_eff & 0xFF
+                cm_pattern[cell_offset + 3] = out_param & 0xFF
+
+        cm_patterns.extend(cm_pattern)
+
+    # Save Binary .cm File
+    with open(cm_filename, "wb") as f:
+        f.write(cm_header)
+        f.write(order_table)
+        f.write(cm_patterns)
+
+    print(f"\nSuccessfully generated sequence binary: '{cm_filename}'")
+
+if __name__ == "__main__":
+    if len(sys.argv) < 3:
+        print("usage: mod2seq <input.mod> <output.cm> [sample_output_dir]")
+        sys.exit(1)
+        
+    out_dir = sys.argv[3] if len(sys.argv) > 3 else "samples"
+    convert_mod(sys.argv[1], sys.argv[2], sample_dir=out_dir)

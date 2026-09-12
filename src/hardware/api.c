@@ -697,10 +697,12 @@ static int l_closure_stop(lua_State *L) {
 
 /* module(filename, volume) - api for hardware tracker */
 int l_module(lua_State *L) {
-    const char* filename = luaL_checkstring(L, 1);
-    double volume = luaL_optnumber(L, 2, 1.0);
+    size_t data_len = 0;
     
-    spu_start_module(filename, volume);
+    const char* raw_data = luaL_checklstring(L, 1, &data_len);
+    float volume = (float)luaL_optnumber(L, 2, 1.0);
+    
+    spu_start_module((const uint8_t*)raw_data, data_len, volume);
 
     lua_newtable(L); // Table is now at stack index -1
     
