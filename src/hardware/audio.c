@@ -1,4 +1,5 @@
 // audio.c
+// TODO: fix fading as it does NOT work at all
 #include <string.h>
 #include <stdio.h>
 #include <stdbool.h>
@@ -59,13 +60,15 @@ static uint8_t  ch_vibrato_depth[4]  = {0, 0, 0, 0};
 // Native volume fading controls
 static float c_tracker_volume = 1.0f;
 static float c_fade_target = 1.0f;
-static float c_fade_step_per_chunk = 0.0f;
+static float c_fade_step_per_sample = 0.0f;
 
-// Frequency lookup map: 128 represents 1.0 standard baseline playback speed
 static const uint8_t note_pitch_table[36] = {
-    16, 17, 18, 19, 20, 21, 23, 24, 25, 27, 29, 30,
-    32, 34, 36, 38, 40, 43, 45, 48, 51, 54, 57, 60,
-    128, 136, 144, 152, 161, 171, 181, 192, 203, 215, 228, 242
+    // Octave 1
+    24, 26, 27, 29, 31, 32, 34, 36, 39, 41, 43, 46,
+    // Octave 2
+    49, 52, 55, 58, 61, 65, 69, 73, 77, 82, 87, 92,
+    // Octave 3 (C-3 = 97 = 8363 Hz @ 22050 Hz APU rate)
+    97, 103, 109, 116, 123, 130, 138, 146, 155, 164, 174, 184
 };
 
 // Bit-exact SNES BRR decompression engine
@@ -272,19 +275,23 @@ void tick_tracker(void) {
 static void spu_callback(uint8_t *stream, int len) {
     uint8_t tracker_enabled = memory[TRACKER_ENABLED];
 
-    if (cm_data && tracker_enabled == 1) {
-        if (c_tracker_volume != c_fade_target) {
-            c_tracker_volume += c_fade_step_per_chunk;
-            if ((c_fade_step_per_chunk > 0.0f && c_tracker_volume >= c_fade_target) ||
-                (c_fade_step_per_chunk < 0.0f && c_tracker_volume <= c_fade_target)) {
-                c_tracker_volume = c_fade_target;
-                c_fade_step_per_chunk = 0.0f;
-            }
-            memory[TRACKER_VOLUME] = (uint8_t)(c_tracker_volume * 255.0f);
-        }
-    }
-
     for (int i = 0; i < len; i++) {
+    
+      if (cm_data && tracker_enabled == 1) {
+            if (c_tracker_volume != c_fade_target) {
+                c_tracker_volume += c_fade_step_per_sample;
+                if ((c_fade_step_per_sample > 0.0f && c_tracker_volume >= c_fade_target) ||
+                    (c_fade_step_per_sample < 0.0f && c_tracker_volume <= c_fade_target)) {
+                    c_tracker_volume = c_fade_target;
+                    c_fade_step_per_sample = 0.0f;
+                }
+                memory[TRACKER_VOLUME] = (uint8_t)(c_tracker_volume * 255.0f);
+            } else {
+                // Two-way sync: allow direct Lua memory writes to control volume
+                c_tracker_volume = (float)memory[TRACKER_VOLUME] / 255.0f;
+            }
+        }
+    
         tick_tracker();
 
         int32_t accum = 0;
@@ -516,7 +523,7 @@ void spu_start_module(const uint8_t* data, size_t size, float volume) {
     // Configure initial sequence volume and enable tracker processing
     c_tracker_volume      = volume;
     c_fade_target         = volume;
-    c_fade_step_per_chunk = 0.0f;
+    c_fade_step_per_sample = 0.0f;
 
     memory[TRACKER_VOLUME]  = (uint8_t)(volume * 255.0f);
     memory[TRACKER_ENABLED] = 1; 
@@ -549,11 +556,12 @@ void spu_fade_module(float target, int duration_frames) {
     c_fade_target = target;
     if (duration_frames <= 0) {
         c_tracker_volume = target;
-        c_fade_step_per_chunk = 0.0f;
+        c_fade_step_per_sample = 0.0f;
         memory[TRACKER_VOLUME] = (uint8_t)(target * 255.0f);
     } else {
-        float total_chunks = (float)duration_frames * (86.1328f / 60.0f);
-        c_fade_step_per_chunk = (target - c_tracker_volume) / total_chunks;
+        // 22050 Hz / 60 FPS = 367.5 samples per frame
+        float total_samples = (float)duration_frames * 367.5f;
+        c_fade_step_per_sample = (target - c_tracker_volume) / total_samples;
     }
 }
 

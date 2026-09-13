@@ -1,10 +1,12 @@
 -- simple copy/paste
--- we can pause and resume. there is SOME sort of rhythm to the sounds but they're all
--- pops, whatever instrument or sample it is, there IS some pitch shifting going on but
--- until i get something stable idk if it works
+-- we can pause and resume. there is SOME sort of rhythm to the sounds the pitches are
+-- messed up, so the frequency conversion may be a factor. ill implement a click track
+-- on one of the channels to see if the bpm is correctly converted
+
+-- alr pitch now works. few things left. like the tempo/speed and volume maybe
 
 -- overall background music that sucks cuz we dont have a tracker yet but wait till we do
-mus = module(include('assets/chip.cm'), 0.8) 
+mus = module(include('assets/light.cm'), 1.0) 
 mus.play()
 
 memcpy(0x0E900, include('assets/sndbnk.bin'))
@@ -29,9 +31,11 @@ function _tick()
         
         pixel(x, pixel_y, wave_color)
     end
-    text("press A/S to pause/play", 4, 87)
+    text("press A/S to pause/play", 4, 80)
+	text("press Z/X to fade in/out",4, 87)
 	
     if btnp(4) then mus.pause() end
     if btnp(5) then mus.play() end
-	
+    if btnp(6) then mus.fade(0.2, 120) end
+	if btnp(7) then mus.fade(0.6, 120) end
 end
