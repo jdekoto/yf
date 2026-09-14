@@ -60,19 +60,19 @@ diagram:
 memory map:
 	0x00000u-0x05FFFu  	VRAM Framebuffer (128x96, 24KB)
 	0x06000u-0x063FFu  	Palette RAM (512 slots, 1KB)
-	0x06400u-0x0643Fu 		Hardware Registers
+	0x06400u-0x0643Fu 	Hardware Registers
 	0x06440u-0x0644Fu  	Input State Registers
 	0x06450u-0x065FFu  	SPU Audio Registers
 	0x06600u-0x068FFu  	BIOS Font (Packed 1-bit, 5x5 Matrix)
 	0x06900u-0x0E8FFu  	Sprite Bank 0 & 1 (16KB each)
 	0x0E900u-0x1E8FFu  	SPU Soundbank RAM (64KB)
 	0x1E900u-0x3E8FFu  	Tilemap Data Block (128KB)
-	0x3E900u-0x7DFFFu 	  Cartridge RAM (~256KB)
+	0x3E900u-0x7DFFFu 	Cartridge RAM (~256KB)
 	0x7E000u-0x7FFFFu  	SRAM Flash Save RAM (8KB)
  
 i/o map:
 	hardware fx + bank switcher:
-	0x06400u 		  Camera X position (16-bit)
+	0x06400u 		  	Camera X position (16-bit)
 	0x06402u				Camera Y position (16-bit)
 	0x06404u				Clip Enable 
 	0x06405u 			Clip X0
@@ -88,24 +88,24 @@ i/o map:
 
 	apu registers:
 	0x06450u + (ch*10) 	Channel's Status
-	0x06451u + (ch*10)	  Channel's Trigger
-	0x06452u + (ch*10)	  Channel's Loop Boolean
+	0x06451u + (ch*10)	Channel's Trigger
+	0x06452u + (ch*10)	Channel's Loop Boolean
 	0x06453u + (ch*10) 	Channel's Address (LO)
 	0x06454u + (ch*10) 	Channel's Address (HI)
 	0x06455u + (ch*10) 	Channel's Length (LO)
 	0x06456u + (ch*10) 	Channel's Length (HI)
 	0x06457u + (ch*10) 	Channel's Volume
 	0x06458u + (ch*10) 	Channel's Pitch
-	0x06459u + (ch*10)	  Channel's Buffer (only half is exposed though)
-	0x06492u				      Hardware Tracker Enable
-	0x06493u				      Hardware Tracker Volume
-	0x06498u				      Hardware Tracker Song Order Index
-	0x06499u				      Hardware Tracker Song Row Index
-	0x0649Au				      Hardware Tracker Song Pattern Index
-	0x06490u-0x0650Fu 	  Hardware Oscilloscope Ring Buffer
+	0x06459u + (ch*10)	Channel's Buffer (only half is exposed though)
+	0x06492u				Hardware Tracker Enable
+	0x06493u				Hardware Tracker Volume
+	0x06498u				Hardware Tracker Song Order Index
+	0x06499u				Hardware Tracker Song Row Index
+	0x0649Au				Hardware Tracker Song Pattern Index
+	0x06490u-0x0650Fu 	Hardware Oscilloscope Ring Buffer
 
 	input registers:
-	0x06440u-0x06443u	  Current Input Mask (32 bit)
+	0x06440u-0x06443u	Current Input Mask (32 bit)
 		Byte 0 [0x06440u] - 	Player 1 Low Byte Configuration
 		Bit 0   DPAD_LEFT
 		Bit 1   DPAD_RIGHT
@@ -160,7 +160,7 @@ cpu:
 	
 	dev's diary: any code not within these two vectors will not run, meaning any variables or functions 
 	must be nested within or used by the _tick() vector in some way, shape, or form. and leaving out
-  the _tick() vector in a cassette will result and a infinite boot state. causing a softlock.
+  	the _tick() vector in a cassette will result and a infinite boot state. causing a softlock.
 	
 memory:
 	the console maps out a continuous 512 KB linear physical memory block ranging from 0x00000u to 0x7FFFFu.
@@ -268,8 +268,8 @@ memory:
 	  map(0, -2, 0, 0) -- the first two args (0, -2), is where the first tile starts. with the second set of args being where it
 	    coords on the framebuffer does it start rendering.
 	  -- or --
-	  map(16, 12, 0, 0, 8, 8, 2) -- this is how we would render a layer. our reference point for the first tile is at (16, 12),
-	    renders full screen, sets the tile width and height to 8px by 8px, and renders it to the software layer 2.
+	  map(16, 12, 0, 0, 8, 8) -- this is how we would render a layer. our reference point for the first tile is at (16, 12),
+	    renders full screen, sets the tile width and height to 8px by 8px, and all you have to do is render the foreground in the next lines of code!
 	dev's diary: i do wanna call the way u have to render the layers, it will be somewhat of an order you have to put it in, so
 	the foreground is rendered or the command is last and the background is first. the unoffical term most devs use is "render 
 	order"

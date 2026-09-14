@@ -1,5 +1,10 @@
 // audio.c
-// TODO: fix fading as it does NOT work at all
+// TODO: make adsr customizable for each channel
+// didnt want to say this but we may need to make aputools
+// i dont want to make like a gui, i wanna do a cli/tui 
+// interface. johnnovak's nim-mod repo seems like a great
+// place to reference, or atleast borrow the rendering code
+// from
 #include <string.h>
 #include <stdio.h>
 #include <stdbool.h>

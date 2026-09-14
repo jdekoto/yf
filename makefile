@@ -31,7 +31,7 @@ LUA_SRC = $(filter-out src/vendor/lua/lua.c src/vendor/lua/luac.c, \
               $(wildcard src/vendor/lua/*.c))
               
 SRC = $(LUA_SRC) $(wildcard src/hardware/*.c) \
-			src/config.c src/main.c
+			src/config.c src/main.c src/snap.c
 
 all: $(TARGET)
 

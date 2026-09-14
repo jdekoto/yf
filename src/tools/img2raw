@@ -1,0 +1,79 @@
+#!/usr/bin/env python3
+import sys
+import os
+from PIL import Image
+
+def process_image(img_path, palette_path=None):
+    if not os.path.exists(img_path):
+        print(f"Error: Image '{img_path}' not found.")
+        sys.exit(1)
+
+    img = Image.open(img_path).convert("RGBA")
+    width, height = img.size
+    pixels = img.load()
+
+    palette = []
+    color_map = {}
+
+    # 1. Load explicit palette file if provided
+    if palette_path and os.path.exists(palette_path):
+        pal_img = Image.open(palette_path).convert("RGBA")
+        pal_pixels = pal_img.load()
+        pw, ph = pal_img.size
+        print(f"Loading external palette from '{palette_path}' ({pw}x{ph})...")
+        for py in range(ph):
+            for px in range(pw):
+                c = pal_pixels[px, py]
+                if c not in color_map:
+                    color_map[c] = len(palette)
+                    palette.append(c)
+
+    # 2. Extract image pixel indices (auto-building palette if no external palette supplied)
+    raw_indices = bytearray(width * height)
+    idx = 0
+
+    for y in range(height):
+        for x in range(width):
+            color = pixels[x, y]
+            
+            # Treat fully transparent pixels as index 0 (alpha = 0)
+            if color[3] == 0:
+                raw_indices[idx] = 0
+            else:
+                if color not in color_map:
+                    if len(palette) >= 512:
+                        print(f"Warning: Image exceeds 512 unique colors at ({x}, {y})! Clamping color.")
+                        color_map[color] = 512
+                    else:
+                        color_map[color] = len(palette)
+                        palette.append(color)
+
+                raw_indices[idx] = color_map[color] & 0xFF
+            idx += 1
+
+    # 3. Export .raw binary stream
+    base_name = os.path.splitext(img_path)[0]
+    out_iraw = f"{base_name}.raw"
+    with open(out_iraw, "wb") as f:
+        f.write(raw_indices)
+
+    # 4. Print Hex Palette Table (RRGGBB format)
+    print(f"\nGenerated '{out_iraw}' ({width}x{height}, {len(raw_indices)} bytes)")
+    print(f"Palette Size: {len(palette)} colors")
+    print("-" * 50)
+    print("Hex Palette Output (Index -> Hex):")
+    for i, c in enumerate(palette):
+        r5 = (c[0] >> 3) & 0x1F
+        g6 = (c[1] >> 2) & 0x3F
+        b5 = (c[2] >> 3) & 0x1F
+        rgb565 = (r5 << 11) | (g6 << 5) | b5
+        print(f"  Index [{i:3d}]: 0x{rgb565:04X} (RGB565)")
+    print("-" * 50)
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("Usage: img2raw <image.png> [palette.png]")
+        sys.exit(1)
+
+    pal = sys.argv[2] if len(sys.argv) > 2 else None
+    process_image(sys.argv[1], pal)

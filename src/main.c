@@ -16,6 +16,7 @@
 #include "headers/font.h"
 #include "headers/yfc.h"
 #include "headers/config.h"
+#include "headers/snap.h"
 #include "headers/sokol/sokol_app.h"
 #include "headers/sokol/sokol_gfx.h"
 #include "headers/sokol/sokol_glue.h"
@@ -107,6 +108,13 @@ void event(const sapp_event *e) {
     if (e->type == SAPP_EVENTTYPE_KEY_DOWN) {
         // Ensure index is within our array bounds
         if (e->key_code < KEY_MAX) {
+            if (!key_state[e->key_code]) {
+                if (e->key_code == SAPP_KEYCODE_F6) {
+                    screenshot();
+                } else if (e->key_code == SAPP_KEYCODE_F9) {
+                    toggle_gif();
+                }
+            }
             key_state[e->key_code] = true;
         }
     } 
@@ -630,7 +638,7 @@ void frame(void) {
     map_inputs();
     /* fb to rgba8 conversion */
     rgb565_to_rgba8(framebuf, fb_rgba, FB_WID * FB_HEI);
-
+    gif_tick();
     sfb_update(fb, &(sfb_update_desc){
         .pixels = SG_RANGE(fb_rgba),
     });

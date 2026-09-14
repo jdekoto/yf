@@ -1,0 +1,64 @@
+#!/usr/bin/env python3
+import json
+import sys
+import os
+
+# Yellow Feather Core Engine VRAM layout constraints
+MAP_WIDTH = 512
+MAP_HEIGHT = 256
+LAYER_SIZE = MAP_WIDTH * MAP_HEIGHT  # 131,072 bytes (128 KB per layer stack)
+
+def convert_json_to_map(json_path, bin_path):
+    if not os.path.exists(json_path):
+        print(f"Error: Cannot find input file '{json_path}'")
+        sys.exit(1)
+
+    print(f"Reading '{json_path}'...")
+    with open(json_path, 'r') as f:
+        data = json.load(f)
+
+    layers = data.get("layers", [])
+    num_layers = max(1, len(layers))
+    
+    # Allocate sequential VRAM buffer (128 KB * number of layers)
+    out_buffer = bytearray(LAYER_SIZE * num_layers)
+
+    sf_width = data.get("mapWidth", 0)
+    sf_height = data.get("mapHeight", 0)
+    print(f"JSON Map Dimensions: {sf_width}x{sf_height}")
+    print(f"Target Engine Layout: {MAP_WIDTH}x{MAP_HEIGHT} ({num_layers} layer(s), {len(out_buffer)} bytes total)")
+
+    for layer_idx, layer in enumerate(layers):
+        layer_offset = layer_idx * LAYER_SIZE
+        tiles = layer.get("tiles", [])
+        tiles_written = 0
+
+        for tile in tiles:
+            tx = tile.get("x", 0)
+            ty = tile.get("y", 0)
+            
+            # Parse tile ID and shift by +1 (Byte 0x00 = empty/transparent)
+            tile_id = int(tile.get("id", 0))
+            engine_tile_val = (tile_id + 1) & 0xFF
+
+            # Calculate destination byte location (512-tile horizontal stride)
+            if 0 <= tx < MAP_WIDTH and 0 <= ty < MAP_HEIGHT:
+                dest_offset = layer_offset + (ty * MAP_WIDTH + tx)
+                out_buffer[dest_offset] = engine_tile_val
+                tiles_written += 1
+
+        layer_name = layer.get("name", f"Layer_{layer_idx}")
+        print(f"  -> Layer {layer_idx} ('{layer_name}'): Baked {tiles_written} tiles.")
+
+    print(f"Writing packed VRAM layout to '{bin_path}'...")
+    with open(bin_path, 'wb') as f:
+        f.write(out_buffer)
+        
+    print("Map compilation complete!")
+
+if __name__ == "__main__":
+    if len(sys.argv) < 3:
+        print("Usage: json2map <input.json> <output.bin>")
+        sys.exit(1)
+
+    convert_json_to_map(sys.argv[1], sys.argv[2])

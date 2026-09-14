@@ -6,7 +6,7 @@
 -- alr pitch now works. few things left. like the tempo/speed and volume maybe
 
 -- overall background music that sucks cuz we dont have a tracker yet but wait till we do
-mus = module(include('assets/light.cm'), 1.0) 
+mus = module(include('assets/novice.cm'), 1.0) 
 mus.play()
 
 memcpy(0x0E900, include('assets/sndbnk.bin'))

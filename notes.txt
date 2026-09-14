@@ -3,8 +3,8 @@
 a. the SRAM doesnt load back up when running a Cassette
 b. finish ant thoroughly test the apu sequencer
 c. make the following cli tools
-	mksndbnk - packs a soundbank binary from a folder (00.wav, 01.wav, etc)
-	rom2inst - rips the bytecode out from the cassette
+	rom2inst - rips the bytecode out from the cassette [nim]
+	img2iraw - takes a bmp/png and RGB values with a indexed .raw [nim]
 	json2map - takes a map in spritefusion json format and packs into a bin
-	mod2seq  - converts an amiga module into sequence data and samples
+	aputools - a terminal interface that controls everything that the apu will deal wit
 	
